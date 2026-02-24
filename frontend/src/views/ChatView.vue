@@ -320,8 +320,8 @@ const goBack = () => {
 
 @media (max-width: 768px) {
   .chat-container {
-    height: calc(100dvh - 160px); 
-    margin: -1.5rem -1rem; /* Break out of .main-content padding */
+    height: calc(100dvh - 100px);
+    margin: -1rem -0.75rem;
     padding: 0;
     max-width: 100vw;
   }
@@ -332,16 +332,40 @@ const goBack = () => {
     border-bottom: none;
   }
   .chat-header {
-    padding: 1rem;
+    padding: 0.5rem 0.75rem;
+    gap: 0.75rem;
+  }
+  .chat-title h2 {
+    font-size: 1rem;
+  }
+  .subtitle {
+    font-size: 0.75rem;
+  }
+  .btn-outline {
+    font-size: 0.75rem;
+    padding: 0.3rem 0.6rem;
+  }
+  .messages-area {
+    padding: 0.75rem;
+    gap: 0.5rem;
   }
   .input-area {
-    padding: 1rem;
+    padding: 0.5rem 0.75rem;
   }
   .input-area form {
     gap: 0.5rem;
   }
+  .input-area input {
+    padding: 0.6rem 1rem;
+    font-size: 1rem;
+    min-height: 44px;
+  }
   .message {
-    max-width: 90%;
+    max-width: 85%;
+  }
+  .message-bubble {
+    padding: 0.6rem 0.85rem;
+    font-size: 0.9rem;
   }
 }
 </style>

@@ -453,8 +453,8 @@ const toggleMembers = () => {
 
 @media (max-width: 600px) {
   .chat-container {
-    height: calc(100dvh - 150px);
-    margin: 0;
+    height: calc(100dvh - 100px);
+    margin: -1rem -0.75rem;
     padding: 0;
   }
   .main-chat {
@@ -463,14 +463,44 @@ const toggleMembers = () => {
     border-right: none;
   }
   .chat-header {
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
+    gap: 0.5rem;
+  }
+  .chat-title h2 {
+    font-size: 0.95rem;
+  }
+  .subtitle {
+    font-size: 0.7rem;
   }
   .btn-outline {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     padding: 0.25rem 0.5rem;
   }
   .btn-members {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+  }
+  .messages-area {
+    padding: 0.75rem;
+    gap: 0.5rem;
+  }
+  .input-area {
+    padding: 0.5rem 0.75rem;
+  }
+  .input-area form {
+    gap: 0.5rem;
+  }
+  .input-area input {
+    padding: 0.6rem 1rem;
+    font-size: 1rem;
+    min-height: 44px;
+  }
+  .message {
+    max-width: 85%;
+  }
+  .message-bubble {
+    padding: 0.6rem 0.85rem;
+    font-size: 0.9rem;
   }
   .members-sidebar {
     width: 100%;

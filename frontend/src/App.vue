@@ -89,7 +89,8 @@ const pageTitle = computed(() => {
   <div class="app-container">
     <!-- Mobile Header -->
     <header class="mobile-header">
-      <router-link to="/" class="mobile-logo"><img src="@/assets/supika-logo.png" alt="Supika" class="logo-img" /></router-link>
+      <router-link to="/" class="mobile-logo"><img src="@/assets/supika-logo.png" alt="Supika" class="logo-img-mobile" /></router-link>
+      <h2 class="mobile-page-title">{{ pageTitle }}</h2>
       <button class="hamburger-btn" @click="toggleSidebar">
         ☰
       </button>
@@ -433,18 +434,37 @@ const pageTitle = computed(() => {
   display: none;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem 1.5rem;
+  padding: 0.5rem 1rem;
   background-color: var(--bg-color);
   border-bottom: 1px solid var(--border-light);
   z-index: 101;
+  gap: 0.75rem;
 }
 
 .mobile-logo {
-  font-size: 1.5rem;
-  font-weight: 800;
-  color: var(--primary-color);
   text-decoration: none;
-  letter-spacing: -0.5px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.logo-img-mobile {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.3));
+}
+
+.mobile-page-title {
+  flex: 1;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
 }
 
 .hamburger-btn {
@@ -502,41 +522,61 @@ const pageTitle = computed(() => {
     overflow-y: auto;
   }
   
+  /* Hide the redundant desktop dashboard header — title is already in mobile-header */
   .dashboard-header {
     height: auto;
-    padding: 1rem;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1.5rem;
+    padding: 0.5rem 1rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  
+  .page-title {
+    display: none;
   }
   
   .header-controls {
     width: 100%;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 1rem;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 0.75rem;
+    align-items: center;
   }
 
   .search-bar-container {
-    width: 100%;
-    order: 3;
-    margin-top: 0.5rem;
+    flex: 1;
+    order: 0;
+    margin-top: 0;
   }
 
   .global-search {
     width: 100%;
+    padding: 0.5rem 0.75rem 0.5rem 2.25rem;
+    font-size: 0.85rem;
   }
   
   .global-search:focus {
     width: 100%;
   }
+
+  .btn-create {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 0.9rem;
+  }
   
   .user-profile-badge {
-    margin-left: auto;
+    margin-left: 0;
   }
   
   .main-content {
-    padding: 1.5rem 1rem;
+    padding: 1rem 0.75rem;
   }
 }
 
