@@ -1,4 +1,5 @@
 <script setup>
+import { API_URL } from '@/config/api'
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
@@ -17,7 +18,7 @@ const eventToDelete = ref(null);
 
 onMounted(async () => {
   try {
-    const res = await axios.get('https://localhost:5000/api/events/hosted/me', {
+    const res = await axios.get(`${API_URL}/api/events/hosted/me`, {
       headers: {
         'x-auth-token': authStore.token
       }
@@ -58,7 +59,7 @@ const confirmDelete = async () => {
   
   const id = eventToDelete.value;
   try {
-    await axios.delete(`https://localhost:5000/api/events/${id}`, {
+    await axios.delete(`${API_URL}/api/events/${id}`, {
       headers: { 'x-auth-token': authStore.token }
     });
     events.value = events.value.filter(e => e.id !== id);

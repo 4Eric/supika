@@ -1,4 +1,5 @@
 <script setup>
+import { API_URL } from '@/config/api'
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
@@ -46,11 +47,11 @@ const prevSlide = () => {
 
 onMounted(async () => {
   try {
-    const res = await axios.get(`https://localhost:5000/api/events/${route.params.id}`)
+    const res = await axios.get(`${API_URL}/api/events/${route.params.id}`)
     event.value = res.data
     
     if (authStore.isAuthenticated) {
-      const regRes = await axios.get('https://localhost:5000/api/events/registered/me', {
+      const regRes = await axios.get(`${API_URL}/api/events/registered/me`, {
         headers: { 'x-auth-token': authStore.token }
       })
       const userRegs = regRes.data.filter(e => e.id === event.value.id)
@@ -85,7 +86,7 @@ const registerForEvent = async () => {
   message.value = ''
   
   try {
-    await axios.post(`https://localhost:5000/api/events/${event.value.id}/register`, 
+    await axios.post(`${API_URL}/api/events/${event.value.id}/register`, 
       { time_slot_id: selectedTimeSlot.value },
       { headers: { 'x-auth-token': authStore.token } }
     )
@@ -108,7 +109,7 @@ const deregisterForEvent = async () => {
   message.value = ''
   
   try {
-    await axios.delete(`https://localhost:5000/api/events/${event.value.id}/register`, {
+    await axios.delete(`${API_URL}/api/events/${event.value.id}/register`, {
       headers: { 'x-auth-token': authStore.token },
       data: { time_slot_id: selectedTimeSlot.value }
     })
@@ -123,7 +124,7 @@ const deregisterForEvent = async () => {
 
 const fetchAttendees = async () => {
   try {
-    const res = await axios.get(`https://localhost:5000/api/events/${event.value.id}/attendees`, {
+    const res = await axios.get(`${API_URL}/api/events/${event.value.id}/attendees`, {
       headers: { 'x-auth-token': authStore.token }
     })
     attendees.value = res.data
@@ -134,7 +135,7 @@ const fetchAttendees = async () => {
 
 const updateAttendeeStatus = async (userId, status) => {
   try {
-    await axios.put(`https://localhost:5000/api/events/${event.value.id}/attendees/${userId}`, { status }, {
+    await axios.put(`${API_URL}/api/events/${event.value.id}/attendees/${userId}`, { status }, {
       headers: { 'x-auth-token': authStore.token }
     })
     const att = attendees.value.find(a => a.id === userId)

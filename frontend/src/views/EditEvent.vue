@@ -1,4 +1,5 @@
 <script setup>
+import { API_URL } from '@/config/api'
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { useRouter, useRoute } from 'vue-router'
@@ -35,7 +36,7 @@ const eventMapRef = ref(null)
 
 onMounted(async () => {
   try {
-    const res = await axios.get(`https://localhost:5000/api/events/${eventId}`)
+    const res = await axios.get(`${API_URL}/api/events/${eventId}`)
     const event = res.data
     
     title.value = event.title
@@ -162,7 +163,7 @@ const submitForm = async () => {
       })
     }
     
-    const res = await axios.put(`https://localhost:5000/api/events/${eventId}`, formData, {
+    const res = await axios.put(`${API_URL}/api/events/${eventId}`, formData, {
       headers: {
         'x-auth-token': token,
         'Content-Type': 'multipart/form-data'

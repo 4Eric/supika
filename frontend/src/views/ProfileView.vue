@@ -1,4 +1,5 @@
 <script setup>
+import { API_URL } from '@/config/api'
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
@@ -15,7 +16,7 @@ const isError = ref(false)
 
 onMounted(async () => {
   try {
-    const res = await axios.get('https://localhost:5000/api/auth/me', {
+    const res = await axios.get(`${API_URL}/api/auth/me`, {
       headers: { 'x-auth-token': authStore.token }
     })
     username.value = res.data.username
@@ -34,7 +35,7 @@ const updateProfile = async () => {
   isError.value = false
 
   try {
-    const res = await axios.put('https://localhost:5000/api/auth/me', {
+    const res = await axios.put(`${API_URL}/api/auth/me`, {
       username: username.value,
       email: email.value,
       password: password.value // Will be empty string if untouched

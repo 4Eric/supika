@@ -1,4 +1,5 @@
 <script setup>
+import { API_URL } from '@/config/api'
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
@@ -147,7 +148,7 @@ const submitForm = async () => {
       })
     }
     
-    const res = await axios.post('https://localhost:5000/api/events', formData, {
+    const res = await axios.post(`${API_URL}/api/events`, formData, {
       headers: {
         'x-auth-token': token,
         'Content-Type': 'multipart/form-data'

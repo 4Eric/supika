@@ -1,4 +1,5 @@
 <script setup>
+import { API_URL } from '@/config/api'
 import { computed, onMounted, ref } from 'vue'
 import axios from 'axios'
 import EventMap from '@/components/EventMap.vue'
@@ -20,7 +21,7 @@ const filteredEvents = computed(() => {
 
 onMounted(async () => {
   try {
-    const res = await axios.get('https://localhost:5000/api/events')
+    const res = await axios.get(`${API_URL}/api/events`)
     localEvents.value = res.data
   } catch (err) {
     console.error('Failed to load events:', err)

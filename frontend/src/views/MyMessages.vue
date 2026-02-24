@@ -1,4 +1,5 @@
 <script setup>
+import { API_URL } from '@/config/api'
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
@@ -18,7 +19,7 @@ onMounted(async () => {
   }
 
   try {
-    const res = await axios.get('https://localhost:5000/api/messages/conversations/me', {
+    const res = await axios.get(`${API_URL}/api/messages/conversations/me`, {
       headers: { 'x-auth-token': authStore.token }
     })
     conversations.value = res.data

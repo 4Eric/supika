@@ -1,4 +1,5 @@
 <script setup>
+import { API_URL } from '@/config/api'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useRouter, useRoute } from 'vue-router'
@@ -26,7 +27,7 @@ const fetchUnreadCount = async () => {
     return
   }
   try {
-    const res = await axios.get('https://localhost:5000/api/messages/unread/count', {
+    const res = await axios.get(`${API_URL}/api/messages/unread/count`, {
       headers: { 'x-auth-token': authStore.token }
     })
     unreadCount.value = res.data.count

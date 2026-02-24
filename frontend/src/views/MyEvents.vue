@@ -1,4 +1,5 @@
 <script setup>
+import { API_URL } from '@/config/api'
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
@@ -13,7 +14,7 @@ const authStore = useAuthStore()
 
 onMounted(async () => {
   try {
-    const res = await axios.get('https://localhost:5000/api/events/registered/me', {
+    const res = await axios.get(`${API_URL}/api/events/registered/me`, {
       headers: {
         'x-auth-token': authStore.token
       }
@@ -34,7 +35,7 @@ const deregister = async (eventId, timeSlotId, eventObj) => {
   if (eventObj) eventObj.stopPropagation();
   try {
     const authStore = (await import('@/stores/auth')).useAuthStore()
-    await axios.delete(`https://localhost:5000/api/events/${eventId}/register`, {
+    await axios.delete(`${API_URL}/api/events/${eventId}/register`, {
       headers: { 'x-auth-token': authStore.token },
       data: { time_slot_id: timeSlotId }
     })

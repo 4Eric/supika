@@ -1,5 +1,5 @@
 // Helper to resolve image URLs - handles both Cloudinary (full URL) and local filenames
-const API_URL = import.meta.env.VITE_API_URL || 'https://localhost:5000'
+import { API_URL } from '@/config/api'
 
 export function getImageUrl(imageUrl) {
     if (!imageUrl || imageUrl === 'default_event.png') {

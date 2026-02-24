@@ -1,4 +1,5 @@
 <script setup>
+import { API_URL } from '@/config/api'
 import { ref, computed, onMounted } from 'vue'
 import axios from 'axios'
 import { useRouter } from 'vue-router'
@@ -17,12 +18,12 @@ const filters = ['All', 'Today', 'Tomorrow', 'This Weekend', 'Next Week', 'Auto-
 
 onMounted(async () => {
   try {
-    const res = await axios.get('https://localhost:5000/api/events')
+    const res = await axios.get(`${API_URL}/api/events`)
     // Sort broadly by date first so hero is chronologically relevant
     allEvents.value = res.data.sort((a,b) => new Date(a.date) - new Date(b.date))
 
     if (authStore.isAuthenticated && authStore.token) {
-      const myRes = await axios.get('https://localhost:5000/api/events/registered/me', {
+      const myRes = await axios.get(`${API_URL}/api/events/registered/me`, {
         headers: { 'x-auth-token': authStore.token }
       })
       // myRes.data returns rows from Registrations JOIN Events

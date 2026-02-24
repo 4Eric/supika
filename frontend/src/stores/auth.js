@@ -1,3 +1,4 @@
+import { API_URL } from '@/config/api'
 import { defineStore } from 'pinia'
 import axios from 'axios'
 
@@ -12,7 +13,7 @@ export const useAuthStore = defineStore('auth', {
     actions: {
         async login(email, password) {
             try {
-                const response = await axios.post('https://localhost:5000/api/auth/login', { email, password })
+                const response = await axios.post(`${API_URL}/api/auth/login`, { email, password })
                 this.token = response.data.token
                 this.user = response.data.user
                 localStorage.setItem('token', this.token)
@@ -26,7 +27,7 @@ export const useAuthStore = defineStore('auth', {
         },
         async register(username, email, password) {
             try {
-                await axios.post('https://localhost:5000/api/auth/register', { username, email, password })
+                await axios.post(`${API_URL}/api/auth/register`, { username, email, password })
                 return await this.login(email, password)
             } catch (error) {
                 console.error('Registration error', error)

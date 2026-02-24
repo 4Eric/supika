@@ -1,4 +1,5 @@
 <script setup>
+import { API_URL } from '@/config/api'
 import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
@@ -24,7 +25,7 @@ const fetchUsers = async () => {
     loading.value = true
     error.value = ''
     try {
-        const response = await axios.get(`https://localhost:5000/api/auth/admin/users?search=${searchQuery.value}`, {
+        const response = await axios.get(`${API_URL}/api/auth/admin/users?search=${searchQuery.value}`, {
             headers: { 'x-auth-token': authStore.token }
         })
         users.value = response.data
@@ -60,7 +61,7 @@ const handleUpdateUser = async () => {
     error.value = ''
     success.value = ''
     try {
-        await axios.put(`https://localhost:5000/api/auth/admin/users/${selectedUser.value.id}`, editForm.value, {
+        await axios.put(`${API_URL}/api/auth/admin/users/${selectedUser.value.id}`, editForm.value, {
             headers: { 'x-auth-token': authStore.token }
         })
         success.value = `User ${editForm.value.username} updated successfully!`
@@ -75,7 +76,7 @@ const handleUpdateUser = async () => {
 const confirmDelete = async (user) => {
     if (confirm(`Are you sure you want to delete user "${user.username}"? All their events and data will be permanently removed.`)) {
         try {
-            await axios.delete(`https://localhost:5000/api/auth/admin/users/${user.id}`, {
+            await axios.delete(`${API_URL}/api/auth/admin/users/${user.id}`, {
                 headers: { 'x-auth-token': authStore.token }
             })
             success.value = 'User deleted successfully'

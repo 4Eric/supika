@@ -1,4 +1,5 @@
 <script setup>
+import { API_URL } from '@/config/api'
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
@@ -40,7 +41,7 @@ const fetchMessages = async () => {
   if (!authStore.isAuthenticated) return
   
   try {
-    const res = await axios.get(`https://localhost:5000/api/messages/${otherUserId}`, {
+    const res = await axios.get(`${API_URL}/api/messages/${otherUserId}`, {
       headers: { 'x-auth-token': authStore.token }
     })
     
@@ -62,7 +63,7 @@ onMounted(async () => {
 
   try {
     // Fetch basic event context
-    const eventRes = await axios.get(`https://localhost:5000/api/events/${eventId}`)
+    const eventRes = await axios.get(`${API_URL}/api/events/${eventId}`)
     event.value = eventRes.data
     
     await fetchMessages()
@@ -88,7 +89,7 @@ const sendMessage = async () => {
   sending.value = true
   
   try {
-    const res = await axios.post(`https://localhost:5000/api/messages`, {
+    const res = await axios.post(`${API_URL}/api/messages`, {
       receiver_id: otherUserId,
       event_id: eventId,
       content: newMessage.value.trim()
