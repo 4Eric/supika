@@ -36,16 +36,13 @@ const handleSubmit = async () => {
         return
       }
       success = await authStore.register(username.value, email.value, password.value)
-      if (!success) {
-        errorMsg.value = 'Registration failed. Email or username may already be taken.'
-      }
     }
 
     if (success) {
       router.push('/')
     }
   } catch (err) {
-    errorMsg.value = 'An unexpected error occurred.'
+    errorMsg.value = err.message || 'An unexpected error occurred.'
   } finally {
     loading.value = false
   }
@@ -287,11 +284,57 @@ const handleSubmit = async () => {
 
 /* Mobile */
 @media (max-width: 768px) {
-  .auth-card {
-    padding: 2rem 1.5rem;
+  .auth-page {
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding: 1.5rem 1rem;
+    min-height: 100svh;
   }
+
+  .auth-card {
+    padding: 2rem 1.25rem;
+    border-radius: 1.25rem;
+  }
+
   .auth-logo {
-    font-size: 1.6rem;
+    font-size: 1.8rem;
+  }
+
+  /* Bigger tap targets for tabs */
+  .tab {
+    padding: 0.85rem 0.5rem;
+    font-size: 1rem;
+    min-height: 44px;
+  }
+
+  /* Bigger inputs with 16px font to prevent iOS zoom */
+  .form-group input {
+    padding: 1rem 1rem;
+    font-size: 1rem;
+    min-height: 48px;
+  }
+
+  .form-group label {
+    font-size: 0.9rem;
+  }
+
+  /* Bigger submit button */
+  .submit-btn {
+    padding: 1rem;
+    font-size: 1.05rem;
+    min-height: 52px;
+  }
+
+  /* More room for toggle link */
+  .toggle-text {
+    font-size: 1rem;
+    margin-top: 1.25rem;
+  }
+
+  .toggle-link {
+    font-size: 1rem;
+    padding: 0.25rem 0;
+    display: inline-block;
   }
 }
 </style>

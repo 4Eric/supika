@@ -188,6 +188,7 @@ const pageTitle = computed(() => {
   flex-direction: column;
   padding: 2rem 1.5rem;
   z-index: 100;
+  overflow-y: hidden;
 }
 
 .logo {
@@ -228,6 +229,16 @@ const pageTitle = computed(() => {
   flex-direction: column;
   gap: 0.5rem;
   flex: 1;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+}
+
+.nav-links::-webkit-scrollbar {
+  width: 4px;
+}
+.nav-links::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
 }
 
 .nav-item {
@@ -257,6 +268,7 @@ const pageTitle = computed(() => {
   color: var(--primary-color);
   border: 1px solid rgba(56, 189, 248, 0.3);
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.1) inset;
+  transition: none;
 }
 
 .nav-item.router-link-active .icon {
@@ -275,11 +287,12 @@ const pageTitle = computed(() => {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: var(--text-muted);
-  padding: 0.75rem;
+  padding: 0.85rem;
   border-radius: 0.5rem;
   cursor: pointer;
   font-weight: 600;
   transition: all 0.2s;
+  min-height: 48px;
 }
 
 .btn-logout:hover {
@@ -465,11 +478,12 @@ const pageTitle = computed(() => {
     position: fixed;
     top: 0;
     left: 0;
-    height: 100vh;
+    height: 100svh;
     transform: translateX(-100%);
     transition: transform 0.3s ease;
     z-index: 102;
     box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+    padding: 1.5rem 1.25rem;
   }
   
   .sidebar.active {
@@ -481,7 +495,7 @@ const pageTitle = computed(() => {
   }
   
   .logo {
-    display: none; /* Hide desktop logo */
+    display: none;
   }
   
   .main-wrapper {
@@ -537,4 +551,3 @@ const pageTitle = computed(() => {
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
 }
 </style>
-

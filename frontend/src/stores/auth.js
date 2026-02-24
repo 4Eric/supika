@@ -31,7 +31,8 @@ export const useAuthStore = defineStore('auth', {
                 return await this.login(email, password)
             } catch (error) {
                 console.error('Registration error', error)
-                return false
+                const message = error.response?.data?.message || 'Registration failed'
+                throw new Error(message)
             }
         },
         logout() {
@@ -52,4 +53,3 @@ export const useAuthStore = defineStore('auth', {
         }
     }
 })
-
