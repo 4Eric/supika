@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 async function seedAdmin() {
     try {
         const pool = await poolPromise;
-        const password = 'manage';
+        const password = 'Manage$123';
         const salt = await bcrypt.genSalt(10);
         const passwordHash = await bcrypt.hash(password, salt);
 

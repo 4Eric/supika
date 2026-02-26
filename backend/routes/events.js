@@ -7,36 +7,38 @@ const { sendConfirmationEmail } = require('../utils/mailer');
 const { v2: cloudinary } = require('cloudinary');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-// Configure Cloudinary (auto-reads CLOUDINARY_URL env var)
-cloudinary.config();
-
-// Cloudinary storage for multer
-const storage = new CloudinaryStorage({
-    cloudinary: cloudinary,
-    params: {
-        folder: 'supika-events',
-        allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'mov'],
-        transformation: [{ quality: 'auto', fetch_format: 'auto' }],
-    },
-});
+// Image Storage Configuration (Conditional Local vs Cloudinary)
+let storage;
+if (process.env.USE_LOCAL_STORAGE === 'true') {
+    console.log('Using LOCAL storage for uploads');
+    storage = multer.diskStorage({
+        destination: (req, file, cb) => {
+            cb(null, path.join(__dirname, '../uploads/'));
+        },
+        filename: (req, file, cb) => {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+        }
+    });
+} else {
+    // Cloudinary storage for production
+    cloudinary.config();
+    storage = new CloudinaryStorage({
+        cloudinary: cloudinary,
+        params: {
+            folder: 'supika-events',
+            allowed_formats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'mov'],
+            transformation: [{ quality: 'auto', fetch_format: 'auto' }],
+        },
+    });
+}
 
 const upload = multer({
     storage: storage,
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
 });
 
-// Middleware to protect routes (basic implementation)
-const auth = (req, res, next) => {
-    const token = req.header('x-auth-token');
-    if (!token) return res.status(401).json({ message: 'No token, authorization denied' });
-    try {
-        const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET || 'secret');
-        req.user = decoded.user;
-        next();
-    } catch (err) {
-        res.status(401).json({ message: 'Token is not valid' });
-    }
-};
+const auth = require('../utils/auth');
 
 // Get all events
 router.get('/', async (req, res) => {
@@ -155,7 +157,8 @@ router.post('/', [auth, upload.array('media', 10)], async (req, res) => {
             if (req.files && req.files.length > 0) {
                 const firstImage = req.files.find(f => f.mimetype.startsWith('image/'));
                 if (firstImage) {
-                    primaryImage = firstImage.path;
+                    // For local storage, we just want the filename. For Cloudinary, we want the full path URL.
+                    primaryImage = process.env.USE_LOCAL_STORAGE === 'true' ? firstImage.filename : firstImage.path;
                 }
             }
 
@@ -207,10 +210,11 @@ router.post('/', [auth, upload.array('media', 10)], async (req, res) => {
             if (req.files && req.files.length > 0) {
                 for (let file of req.files) {
                     const mediaType = file.mimetype.startsWith('video/') ? 'video' : 'image';
+                    const mediaUrl = process.env.USE_LOCAL_STORAGE === 'true' ? file.filename : file.path;
                     await client.query(`
                         INSERT INTO "EventMedia" (event_id, media_url, media_type)
                         VALUES ($1, $2, $3)
-                    `, [eventId, file.path, mediaType]);
+                    `, [eventId, mediaUrl, mediaType]);
                 }
             }
 
@@ -259,7 +263,8 @@ router.put('/:id', [auth, upload.array('media', 10)], async (req, res) => {
                 const firstImage = req.files.find(f => f.mimetype.startsWith('image/'));
                 if (firstImage) {
                     imageUpdateSql = `, image_url = $${paramIndex}`;
-                    queryParams.push(firstImage.filename);
+                    const imgValue = process.env.USE_LOCAL_STORAGE === 'true' ? firstImage.filename : firstImage.path;
+                    queryParams.push(imgValue);
                     paramIndex++;
                 }
             }
@@ -311,10 +316,11 @@ router.put('/:id', [auth, upload.array('media', 10)], async (req, res) => {
 
                 for (let file of req.files) {
                     const mediaType = file.mimetype.startsWith('video/') ? 'video' : 'image';
+                    const mediaUrl = process.env.USE_LOCAL_STORAGE === 'true' ? file.filename : file.path;
                     await client.query(`
                         INSERT INTO "EventMedia" (event_id, media_url, media_type)
                         VALUES ($1, $2, $3)
-                    `, [eventId, file.filename, mediaType]);
+                    `, [eventId, mediaUrl, mediaType]);
                 }
             }
 

@@ -6,8 +6,19 @@ const pool = new Pool({
     connectionString: process.env.DATABASE_URL || 'postgresql://yby_admin:manage@localhost:5433/yby_vibe',
 });
 
-// 10 sample tech images
-const sampleImages = Array.from({ length: 10 }, (_, i) => `sample_tech_${i + 1}.png`);
+// 10 sample tech images (pointing to Cloudinary)
+const sampleImages = [
+    'https://res.cloudinary.com/dhxrqirux/image/upload/v1771911312/supika-samples/rj6rp8aqayapnjbbvh2z.jpg',
+    'https://res.cloudinary.com/dhxrqirux/image/upload/v1771911313/supika-samples/g3jy3wqjdykpopg5h2id.jpg',
+    'https://res.cloudinary.com/dhxrqirux/image/upload/v1771911313/supika-samples/uialj06e33u2imgpphkh.jpg',
+    'https://res.cloudinary.com/dhxrqirux/image/upload/v1771911314/supika-samples/ffamk2eqsx2pnetfd07j.jpg',
+    'https://res.cloudinary.com/dhxrqirux/image/upload/v1771911315/supika-samples/rr5i1vnfikxws2pmfatf.jpg',
+    'https://res.cloudinary.com/dhxrqirux/image/upload/v1771911316/supika-samples/ouppwt6z1ia7cxgljwoj.jpg',
+    'https://res.cloudinary.com/dhxrqirux/image/upload/v1771911317/supika-samples/dkmsmtxuwcd5ykm1ot5f.jpg',
+    'https://res.cloudinary.com/dhxrqirux/image/upload/v1771911318/supika-samples/wbspl1nyx6ahla7chv6m.jpg',
+    'https://res.cloudinary.com/dhxrqirux/image/upload/v1771911312/supika-samples/rj6rp8aqayapnjbbvh2z.jpg',
+    'https://res.cloudinary.com/dhxrqirux/image/upload/v1771911313/supika-samples/g3jy3wqjdykpopg5h2id.jpg'
+];
 
 // GTA (Greater Toronto Area) locations with realistic lat/lng
 const gtaLocations = [

@@ -23,19 +23,7 @@ const registerLimiter = rateLimit({
 });
 
 // Middleware to protect routes
-const auth = (req, res, next) => {
-    const token = req.header('x-auth-token');
-    if (!token) return res.status(401).json({ message: 'No token, authorization denied' });
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
-        req.user = decoded.user;
-        next();
-    } catch (err) {
-        res.status(401).json({ message: 'Token is not valid' });
-    }
-};
-
-// Middleware to check for Admin role
+const auth = require('../utils/auth');
 const adminOnly = (req, res, next) => {
     if (req.user && req.user.role === 'admin') {
         next();

@@ -2,17 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { poolPromise } = require('../config/db');
 
-const auth = (req, res, next) => {
-    const token = req.header('x-auth-token');
-    if (!token) return res.status(401).json({ message: 'No token, authorization denied' });
-    try {
-        const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET || 'secret');
-        req.user = decoded.user;
-        next();
-    } catch (err) {
-        res.status(401).json({ message: 'Token is not valid' });
-    }
-};
+const auth = require('../utils/auth');
 
 // Get global unread messages count
 router.get('/unread/count', auth, async (req, res) => {
