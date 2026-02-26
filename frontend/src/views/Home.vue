@@ -19,22 +19,20 @@ const filters = ['All', 'Today', 'Tomorrow', 'This Weekend', 'Next Week', 'Auto-
 onMounted(async () => {
   try {
     const res = await axios.get(`${API_URL}/api/events`)
-    // Sort broadly by date first so hero is chronologically relevant
-    allEvents.value = res.data.sort((a,b) => new Date(a.date) - new Date(b.date))
+    allEvents.value = res.data.sort((a, b) => new Date(a.date) - new Date(b.date))
 
     if (authStore.isAuthenticated && authStore.token) {
       const myRes = await axios.get(`${API_URL}/api/events/registered/me`, {
         headers: { 'x-auth-token': authStore.token }
       })
-      // myRes.data returns rows from Registrations JOIN Events
-      myEvents.value = myRes.data 
+      myEvents.value = myRes.data
     }
   } catch (err) {
     console.error('Failed to load events:', err)
   }
 })
 
-// Machine Learning-lite Keyword Extraction
+// --- Recommendation Engine ---
 const stopWords = ['the', 'is', 'at', 'which', 'and', 'on', 'a', 'an', 'in', 'to', 'for', 'of', 'with', 'from', 'this', 'that', 'by', 'as', 'it', 'are', 'was', 'were', 'be', 'been', 'will', 'or', 'but', 'not', 'if', 'then', 'you', 'your', 'i', 'my', 'we', 'our']
 
 const userKeywords = computed(() => {
@@ -47,21 +45,19 @@ const userKeywords = computed(() => {
       freq[w] = (freq[w] || 0) + 1
     }
   })
-  // sort by frequency, return top 10 keywords
-  return Object.entries(freq).sort((a,b) => b[1] - a[1]).slice(0, 10).map(x => x[0])
+  return Object.entries(freq).sort((a, b) => b[1] - a[1]).slice(0, 10).map(x => x[0])
 })
 
-// Filter by Date Pills & Search box
+// --- Date & Search Filtering ---
 const timeFilteredEvents = computed(() => {
   let filtered = allEvents.value
-  
-  // Auto-Accept filter works independently of date filters
+
   if (activeFilter.value === 'Auto-Accept') {
     filtered = filtered.filter(e => !e.requires_approval)
   } else if (activeFilter.value !== 'All') {
     const now = new Date()
     const todayStr = now.toDateString()
-    
+
     filtered = filtered.filter(e => {
       const eDate = new Date(e.date)
       if (activeFilter.value === 'Today') {
@@ -73,9 +69,8 @@ const timeFilteredEvents = computed(() => {
       } else if (activeFilter.value === 'This Weekend') {
         const day = now.getDay()
         const diffToSat = (6 - day + 7) % 7
-        const diffToSatAdjusted = diffToSat === 0 && now.getHours() < 24 ? 0 : diffToSat // handle if today is saturday
         const sat = new Date(now)
-        sat.setDate(now.getDate() + diffToSatAdjusted)
+        sat.setDate(now.getDate() + (diffToSat === 0 && now.getHours() < 24 ? 0 : diffToSat))
         const sun = new Date(sat)
         sun.setDate(sat.getDate() + 1)
         return eDate.toDateString() === sat.toDateString() || eDate.toDateString() === sun.toDateString()
@@ -89,80 +84,52 @@ const timeFilteredEvents = computed(() => {
 
   const q = (uiStore.searchQuery || '').toLowerCase()
   if (q) {
-    filtered = filtered.filter(e => 
-      e.title.toLowerCase().includes(q) || 
+    filtered = filtered.filter(e =>
+      e.title.toLowerCase().includes(q) ||
       (e.location_name && e.location_name.toLowerCase().includes(q)) ||
       (e.description && e.description.toLowerCase().includes(q))
     )
   }
-  
+
   return filtered
 })
 
-// 1. Hero Event (First relevant event)
-const heroEvent = computed(() => {
+// --- Unified Feed: Recommended first, then by date ---
+const feedEvents = computed(() => {
   const events = timeFilteredEvents.value
-  return events.length > 0 ? events[0] : null
-})
 
-// 2. Recommended For You
-const recommendedEvents = computed(() => {
-  const others = timeFilteredEvents.value.slice(1) // exclude hero
-  
   if (userKeywords.value.length === 0) {
-    // Graceful fallback for brand new users - random sample
-    return [...others].sort(() => 0.5 - Math.random()).slice(0, 6)
+    // New user — shuffle for serendipity
+    return [...events].sort(() => 0.5 - Math.random())
   }
-  
-  const scored = others.map(e => {
+
+  // Score each event by keyword match
+  const scored = events.map(e => {
     let score = 0
-    const textBlob = ((e.title || '') + ' ' + (e.description || '')).toLowerCase()
+    const text = ((e.title || '') + ' ' + (e.description || '')).toLowerCase()
     userKeywords.value.forEach(kw => {
-      if (textBlob.includes(kw)) score++
+      if (text.includes(kw)) score++
     })
-    return { event: e, score }
+    return { ...e, _recScore: score }
   })
-  
-  // Sort by score descendant, slice top 6
-  return scored.sort((a,b) => b.score - a.score).slice(0, 6).map(s => s.event)
-})
 
-// 3. Trending Now (Random pool excluding Recommended & Hero)
-const trendingEvents = computed(() => {
-  const recIds = new Set(recommendedEvents.value.map(e => e.id))
-  // Filter out the hero and recommended from the general pool
-  const others = timeFilteredEvents.value.slice(1).filter(e => !recIds.has(e.id))
-  // Pure random sort for serendipity
-  return [...others].sort(() => 0.5 - Math.random()).slice(0, 6)
-})
-
-// 4. All Upcoming Feed
-const allUpcomingEvents = computed(() => {
-  const usedIds = new Set([
-    ...(heroEvent.value ? [heroEvent.value.id] : []),
-    ...recommendedEvents.value.map(e => e.id),
-    ...trendingEvents.value.map(e => e.id)
-  ])
-  return timeFilteredEvents.value.filter(e => !usedIds.has(e.id))
+  // Recommended first (score > 0), then by date
+  return scored.sort((a, b) => {
+    if (b._recScore !== a._recScore) return b._recScore - a._recScore
+    return new Date(a.date) - new Date(b.date)
+  })
 })
 
 const formatLocation = (loc) => {
-  if (!loc) return '';
-  const parts = loc.split(',').map(p => p.trim());
-  if (parts.length <= 2) return loc;
-  
-  const isZip = (str) => /\\d/.test(str) && str.length <= 10;
-  let stateIdx = parts.length - 2;
-  
-  if (isZip(parts[stateIdx])) {
-    stateIdx--;
-  }
-  const cityIdx = stateIdx - 1;
-  
-  if (cityIdx >= 0) {
-    return `${parts[cityIdx]}, ${parts[stateIdx]}`;
-  }
-  return parts.slice(0, 2).join(', ');
+  if (!loc) return ''
+  const parts = loc.split(',').map(p => p.trim())
+  if (parts.length <= 2) return loc
+  const isZip = (str) => /\d/.test(str) && str.length <= 10
+  let stateIdx = parts.length - 2
+  if (isZip(parts[stateIdx])) stateIdx--
+  const cityIdx = stateIdx - 1
+  if (cityIdx >= 0) return `${parts[cityIdx]}, ${parts[stateIdx]}`
+  return parts.slice(0, 2).join(', ')
 }
 
 const goToEvent = (id) => {
@@ -172,11 +139,11 @@ const goToEvent = (id) => {
 
 <template>
   <div class="discover-container">
-    
+
     <!-- Filter Pills -->
     <div class="filter-pills-container">
-      <button 
-        v-for="filter in filters" 
+      <button
+        v-for="filter in filters"
         :key="filter"
         class="filter-pill"
         :class="{ active: activeFilter === filter }"
@@ -186,94 +153,54 @@ const goToEvent = (id) => {
       </button>
     </div>
 
-    <div v-if="timeFilteredEvents.length === 0" class="no-results">
+    <div v-if="feedEvents.length === 0" class="no-results">
       <h3>No events found 🕵️</h3>
       <p>Try adjusting your search or date filters.</p>
     </div>
 
-    <!-- Hero Spotlight -->
-    <section v-if="heroEvent" class="hero-spotlight" @click="goToEvent(heroEvent.id)">
-      <div class="hero-bg" :style="{ backgroundImage: 'url(' + getImageUrl(heroEvent.image_url) + ')' }"></div>
-      <div class="hero-gradient"></div>
-      <div class="hero-content">
-        <span class="spotlight-tag">🌟 Spotlight Event</span>
-        <h2>{{ heroEvent.title }}</h2>
-        <p class="hero-meta">📍 {{ formatLocation(heroEvent.location_name) }} • 📅 {{ new Date(heroEvent.date).toLocaleDateString() }}</p>
-      </div>
-    </section>
+    <!-- Masonry Waterfall Grid -->
+    <div class="masonry-grid" v-else>
+      <div
+        class="masonry-card"
+        v-for="event in feedEvents"
+        :key="event.id"
+        @click="goToEvent(event.id)"
+      >
+        <!-- Image -->
+        <div class="card-image-wrapper">
+          <img
+            :src="getImageUrl(event.image_url)"
+            :alt="event.title"
+            class="card-image"
+            loading="lazy"
+          />
+          <!-- For You badge -->
+          <span v-if="event._recScore > 0" class="for-you-badge">✨ For You</span>
+          <!-- Auto-Accept badge -->
+          <span v-if="!event.requires_approval" class="auto-badge">⚡ Instant</span>
+        </div>
 
-    <!-- Recommended For You Lane -->
-    <section class="section-container" v-if="recommendedEvents.length > 0">
-      <div class="section-header">
-        <h2>Recommended For You ✨</h2>
-        <p v-if="userKeywords.length > 0">Based on your past RSVPs (Topics: <span class="keyword-highlight">{{ userKeywords.slice(0,3).join(', ') }}</span>)</p>
-        <p v-else>Top picks to kickstart your vibe journey.</p>
-      </div>
-      
-      <div class="horizontal-scroll">
-        <div class="card event-card" v-for="event in recommendedEvents" :key="event.id" @click="goToEvent(event.id)">
-          <div class="card-banner" :style="{ backgroundImage: 'url(' + getImageUrl(event.image_url) + ')' }"></div>
-          <div class="card-content">
-            <h3>{{ event.title }}</h3>
-            <p class="event-meta">
-              📍 <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" @click.stop class="location-link">{{ formatLocation(event.location_name) }}</a>
-            </p>
-            <p class="event-meta">📅 {{ new Date(event.date).toLocaleDateString() }}</p>
-            <div class="card-actions">
-              <button class="btn btn-secondary btn-sm" @click.stop="goToEvent(event.id)">Book Now</button>
-            </div>
+        <!-- Content -->
+        <div class="card-body">
+          <h3 class="card-title">{{ event.title }}</h3>
+          <div class="card-meta">
+            <span class="meta-item">
+              📍 <a
+                :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`"
+                target="_blank"
+                @click.stop
+                class="location-link"
+              >{{ formatLocation(event.location_name) }}</a>
+            </span>
+            <span class="meta-item">📅 {{ new Date(event.date).toLocaleDateString() }}</span>
+          </div>
+          <div class="card-author">
+            <div class="author-avatar">{{ (event.creator_name || 'U').charAt(0).toUpperCase() }}</div>
+            <span class="author-name">{{ event.creator_name || 'Organizer' }}</span>
           </div>
         </div>
       </div>
-    </section>
-
-    <!-- Trending Now Lane -->
-    <section class="section-container" v-if="trendingEvents.length > 0">
-      <div class="section-header">
-        <h2>Trending Now 🔥</h2>
-        <p>What's hot and happening around the city.</p>
-      </div>
-      
-      <div class="horizontal-scroll">
-        <div class="card event-card" v-for="event in trendingEvents" :key="event.id" @click="goToEvent(event.id)">
-          <div class="card-banner" :style="{ backgroundImage: 'url(' + getImageUrl(event.image_url) + ')' }"></div>
-          <div class="card-content">
-            <h3>{{ event.title }}</h3>
-            <p class="event-meta">
-              📍 <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" @click.stop class="location-link">{{ formatLocation(event.location_name) }}</a>
-            </p>
-            <p class="event-meta">📅 {{ new Date(event.date).toLocaleDateString() }}</p>
-            <div class="card-actions">
-              <button class="btn btn-secondary btn-sm" @click.stop="goToEvent(event.id)">Book Now</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- All Upcoming Grid -->
-    <section class="section-container" v-if="allUpcomingEvents.length > 0">
-      <div class="section-header">
-        <h2>All Upcoming Events 📅</h2>
-        <p>Keep scrolling to find more hidden gems.</p>
-      </div>
-      
-      <div class="vertical-grid">
-        <div class="card event-card vertical-card" v-for="event in allUpcomingEvents" :key="event.id" @click="goToEvent(event.id)">
-          <div class="card-banner" :style="{ backgroundImage: 'url(' + getImageUrl(event.image_url) + ')' }"></div>
-          <div class="card-content">
-            <h3>{{ event.title }}</h3>
-            <p class="event-meta">
-              📍 <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" @click.stop class="location-link">{{ formatLocation(event.location_name) }}</a>
-            </p>
-            <p class="event-meta">📅 {{ new Date(event.date).toLocaleDateString() }}</p>
-            <div class="card-actions">
-              <button class="btn btn-secondary btn-sm" @click.stop="goToEvent(event.id)">Book Now</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+    </div>
 
   </div>
 </template>
@@ -282,191 +209,139 @@ const goToEvent = (id) => {
 .discover-container {
   display: flex;
   flex-direction: column;
-  gap: 3rem;
-  padding: 1.5rem;
-  padding-bottom: 3rem;
+  gap: 1.25rem;
+  padding: 0.5rem 0;
 }
 
-/* Date Pills */
+/* ---- Filter Pills ---- */
 .filter-pills-container {
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
   overflow-x: auto;
-  padding-bottom: 0.5rem;
-  margin-bottom: -1rem; /* tighten gap to hero */
+  padding-bottom: 0.25rem;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 .filter-pills-container::-webkit-scrollbar {
   display: none;
 }
 .filter-pill {
-  background: var(--card-bg);
-  border: 1px solid var(--border-light);
-  color: var(--text-main);
-  padding: 0.6rem 1.25rem;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+  padding: 0.45rem 1rem;
   border-radius: 2rem;
   font-weight: 500;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s ease;
+  font-family: inherit;
 }
 .filter-pill:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
+  color: var(--text-main);
 }
 .filter-pill.active {
   background: var(--primary-color);
   color: white;
   border-color: var(--primary-color);
-  box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.35);
 }
 
-/* Hero Spotlight */
-.hero-spotlight {
+/* ---- Masonry Grid ---- */
+.masonry-grid {
+  column-count: 2;
+  column-gap: 12px;
+}
+
+/* ---- Card ---- */
+.masonry-card {
+  break-inside: avoid;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--card-bg);
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+.masonry-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(56, 189, 248, 0.15), 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* Image */
+.card-image-wrapper {
   position: relative;
   width: 100%;
-  height: 380px;
-  border-radius: 1.5rem;
   overflow: hidden;
-  cursor: pointer;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-  border: 1px solid var(--border-light);
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
-.hero-spotlight:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 15px 40px rgba(0,0,0,0.6);
+.card-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  transition: transform 0.35s ease;
 }
-.hero-bg {
+.masonry-card:hover .card-image {
+  transform: scale(1.04);
+}
+
+/* Badges */
+.for-you-badge {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-size: cover;
-  background-position: center;
-  z-index: 1;
-}
-.hero-gradient {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.2) 60%, transparent 100%);
-  z-index: 2;
-}
-.hero-content {
-  position: relative;
-  z-index: 3;
-  padding: 2.5rem;
-}
-.spotlight-tag {
-  display: inline-block;
-  background: rgba(255,255,255,0.2);
+  top: 8px;
+  left: 8px;
+  background: rgba(56, 189, 248, 0.85);
   backdrop-filter: blur(8px);
-  padding: 0.3rem 0.8rem;
-  border-radius: 1rem;
-  font-size: 0.8rem;
-  font-weight: 600;
   color: white;
-  margin-bottom: 0.8rem;
-  border: 1px solid rgba(255,255,255,0.3);
-}
-.hero-content h2 {
-  font-size: 2.5rem;
-  color: white;
-  margin-bottom: 0.5rem;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
-}
-.hero-meta {
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-}
-
-/* Generic Section Layouts */
-.section-header {
-  margin-bottom: 1.25rem;
-}
-.section-header h2 {
-  font-size: 1.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
-  margin-bottom: 0.2rem;
-  color: var(--text-main);
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
 }
-.section-header p {
-  color: var(--text-muted);
-  font-size: 0.95rem;
+.auto-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(52, 211, 153, 0.85);
+  backdrop-filter: blur(8px);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
 }
-.keyword-highlight {
-  color: var(--primary-color);
+
+/* Card Body */
+.card-body {
+  padding: 10px 12px 12px;
+}
+
+.card-title {
+  font-size: 0.9rem;
   font-weight: 600;
-}
-
-/* Horizontal scroll lanes */
-.horizontal-scroll {
-  display: flex;
-  gap: 1.5rem;
-  overflow-x: auto;
-  padding-bottom: 1rem;
-  scroll-behavior: smooth;
-}
-.horizontal-scroll::-webkit-scrollbar {
-  height: 8px;
-}
-.horizontal-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-.horizontal-scroll::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
-}
-.horizontal-scroll::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-/* Vertical grid for 'All Upcoming' */
-.vertical-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1.5rem;
-}
-
-/* Base Card Styles */
-.event-card {
-  min-width: 300px;
-  max-width: 300px;
-  flex: 0 0 auto;
-  cursor: pointer;
-  padding: 0;
+  margin: 0 0 6px;
+  color: var(--text-main);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
+  line-height: 1.35;
+}
+
+.card-meta {
   display: flex;
   flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
 }
-.vertical-card {
-  min-width: 0;
-  max-width: none;
-}
-.card-banner {
-  height: 180px;
-  background-size: cover;
-  background-position: center;
-  border-bottom: 1px solid var(--border-light);
-}
-.card-content {
-  padding: 1.25rem;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-.card-content h3 {
-  font-size: 1.2rem;
-  margin-bottom: 0.5rem;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.event-meta {
+.meta-item {
+  font-size: 0.72rem;
   color: var(--text-muted);
-  font-size: 0.85rem;
-  margin-bottom: 0.4rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -476,55 +351,103 @@ const goToEvent = (id) => {
   text-decoration: none;
 }
 .location-link:hover {
-  text-decoration: underline;
   color: var(--secondary-color);
-}
-.card-actions {
-  margin-top: auto;
-  padding-top: 1rem;
-}
-.btn-sm {
-  width: 100%;
+  text-decoration: underline;
 }
 
+/* Author Row */
+.card-author {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.author-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: black;
+  flex-shrink: 0;
+}
+.author-name {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* No Results */
 .no-results {
   text-align: center;
-  padding: 4rem;
+  padding: 4rem 2rem;
   background: var(--card-bg);
   border: 1px solid var(--border-light);
   border-radius: 1rem;
 }
 .no-results h3 {
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   color: var(--primary-color);
   margin-bottom: 0.5rem;
 }
+.no-results p {
+  color: var(--text-muted);
+}
 
-/* Mobile Breakpoints */
-@media (max-width: 768px) {
-  .discover-container {
-    padding: 1rem;
-    gap: 2rem;
+/* ---- Responsive ---- */
+
+/* Tablet */
+@media (min-width: 640px) {
+  .masonry-grid {
+    column-count: 3;
+    column-gap: 14px;
   }
-  .hero-spotlight {
-    height: 300px;
+  .masonry-card {
+    margin-bottom: 14px;
   }
-  .hero-content {
-    padding: 1.5rem;
+}
+
+/* Desktop */
+@media (min-width: 1024px) {
+  .masonry-grid {
+    column-count: 4;
+    column-gap: 16px;
   }
-  .hero-content h2 {
-    font-size: 1.8rem;
+  .masonry-card {
+    margin-bottom: 16px;
   }
-  .section-header h2 {
-    font-size: 1.4rem;
+  .card-title {
+    font-size: 0.95rem;
   }
-  .event-card {
-    min-width: 260px;
-    max-width: 260px;
+}
+
+/* Large Desktop */
+@media (min-width: 1400px) {
+  .masonry-grid {
+    column-count: 5;
+    column-gap: 18px;
   }
-  .card-banner {
-    height: 150px;
+}
+
+/* Small Mobile */
+@media (max-width: 400px) {
+  .masonry-grid {
+    column-gap: 8px;
+  }
+  .masonry-card {
+    margin-bottom: 8px;
+    border-radius: 10px;
+  }
+  .card-body {
+    padding: 8px 10px 10px;
+  }
+  .card-title {
+    font-size: 0.82rem;
   }
 }
 </style>
-
