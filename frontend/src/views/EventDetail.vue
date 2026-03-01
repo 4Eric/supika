@@ -30,7 +30,13 @@ const hasApprovedRegistration = computed(() => {
   return registeredSlots.value.some(s => s.status === 'approved')
 })
 const canJoinGroupChat = computed(() => {
-  return event.value && (event.value.created_by === authStore.user?.id || hasApprovedRegistration.value)
+  if (!event.value || !selectedTimeSlot.value) return false
+  
+  // Organizer can join any slot's chat
+  if (event.value.createdBy === authStore.user?.id) return true
+  
+  // Check if approved for THIS specific slot
+  return registeredSlots.value.some(s => s.slotId === selectedTimeSlot.value && s.status === 'approved')
 })
 
 const currentSlide = ref(0)
@@ -56,11 +62,11 @@ onMounted(async () => {
       })
       const userRegs = regRes.data.filter(e => e.id === event.value.id)
       if (userRegs.length > 0) {
-        registeredSlots.value = userRegs.map(r => ({ slotId: r.time_slot_id, status: r.status }))
+        registeredSlots.value = userRegs.map(r => ({ slotId: r.timeSlotId, status: r.status }))
       }
       
       // If creator, load attendees
-      if (event.value.created_by === authStore.user?.id) {
+      if (event.value.createdBy === authStore.user?.id) {
         fetchAttendees()
       }
     }
@@ -87,14 +93,14 @@ const registerForEvent = async () => {
   
   try {
     await axios.post(`${API_URL}/api/events/${event.value.id}/register`, 
-      { time_slot_id: selectedTimeSlot.value },
+      { timeSlotId: selectedTimeSlot.value },
       { headers: { 'x-auth-token': authStore.token } }
     )
     registeredSlots.value.push({
       slotId: selectedTimeSlot.value,
-      status: event.value.requires_approval ? 'pending' : 'approved'
+      status: event.value.requiresApproval ? 'pending' : 'approved'
     })
-    message.value = event.value.requires_approval ? "Request sent. Waiting for organizer approval." : "Successfully registered! A confirmation email has been sent."
+    message.value = event.value.requiresApproval ? "Request sent. Waiting for organizer approval." : "Successfully registered! A confirmation email has been sent."
   } catch (error) {
     message.value = error.response?.data?.message || "Failed to register."
   } finally {
@@ -111,7 +117,7 @@ const deregisterForEvent = async () => {
   try {
     await axios.delete(`${API_URL}/api/events/${event.value.id}/register`, {
       headers: { 'x-auth-token': authStore.token },
-      data: { time_slot_id: selectedTimeSlot.value }
+      data: { timeSlotId: selectedTimeSlot.value }
     })
     registeredSlots.value = registeredSlots.value.filter(s => s.slotId !== selectedTimeSlot.value)
     message.value = "Successfully canceled registration."
@@ -147,433 +153,459 @@ const updateAttendeeStatus = async (userId, status) => {
 </script>
 
 <template>
-  <div class="detail-container">
-    <div v-if="loading" class="loading">Loading event details...</div>
-    <div v-else-if="event" class="card p-0">
-      <div v-if="event.media && event.media.length > 0" class="carousel-container">
-        <div class="carousel-slide" v-for="(media, index) in event.media" :key="media.id" v-show="index === currentSlide">
-          <img v-if="media.media_type === 'image'" :src="getImageUrl(media.media_url)" class="carousel-media" />
-          <video v-else-if="media.media_type === 'video'" :src="getImageUrl(media.media_url)" controls class="carousel-media autoplay-video"></video>
-        </div>
-        
-        <button v-if="event.media.length > 1" @click="prevSlide" class="carousel-btn prev-btn">❮</button>
-        <button v-if="event.media.length > 1" @click="nextSlide" class="carousel-btn next-btn">❯</button>
-        
-        <div v-if="event.media.length > 1" class="carousel-indicators">
-          <span v-for="(media, index) in event.media" :key="'ind-'+media.id" 
-                :class="['indicator', { active: index === currentSlide }]" 
-                @click="currentSlide = index">
-          </span>
-        </div>
-      </div>
-      <div v-else class="event-hero-banner" :style="{ backgroundImage: 'url(' + getImageUrl(event.image_url) + ')' }"></div>
+  <div class="event-detail-page">
+    <div v-if="loading" class="loading-overlay">
+      <div class="spinner"></div>
+    </div>
+    <div v-else-if="event" class="page-content">
       
-      <div class="card-content">
-        <h1 class="event-title">{{ event.title }}</h1>
-        <p class="creator-label">Created by <strong>{{ event.creator_name || 'an unknown user' }}</strong></p>
-      
-      <div class="event-meta-banner">
-        <div><strong>📍 Location:</strong> <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" class="location-link">{{ event.location_name }}</a></div>
-      </div>
-      
-      <div v-if="event.time_slots && event.time_slots.length > 0" class="time-slots-section">
-        <h3>Available Time Slots</h3>
-        <div class="time-slot-pills">
-          <button 
-            v-for="slot in event.time_slots" 
-            :key="slot.id" 
-            class="time-slot-pill"
-            :class="{ active: selectedTimeSlot === slot.id, full: slot.attendee_count >= slot.max_attendees && selectedTimeSlot !== slot.id, booked: registeredSlots.some(s => s.slotId === slot.id) }"
-            @click="selectedTimeSlot = slot.id"
-            :disabled="slot.attendee_count >= slot.max_attendees && !registeredSlots.some(s => s.slotId === slot.id) && selectedTimeSlot !== slot.id"
-          >
-            <div class="slot-time">{{ new Date(slot.start_time).toLocaleString([], {weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) }}</div>
-            <div class="slot-capacity">{{ slot.attendee_count }} / {{ slot.max_attendees }} Booked</div>
-          </button>
-        </div>
-      </div>
-      
-      <div class="event-description">
-        <h3>About this event</h3>
-        <p>{{ event.description }}</p>
-      </div>
-      
-      <div class="map-section">
-        <h3>Location</h3>
-        <div class="map-wrapper">
-          <EventMap :events="[event]" />
-        </div>
-      </div>
-      
-      <div class="action-section">
-        <template v-if="authStore.isAuthenticated">
-          <!-- Action Buttons based on Role -->
-          <div class="role-actions" v-if="event.created_by === authStore.user?.id">
-            <button @click="showAttendees = !showAttendees" class="btn btn-secondary">
-              👥 Manage Attendees ({{ attendees.length }})
-            </button>
+      <!-- Hero Media (Edge-to-Edge) -->
+      <div class="hero-section">
+        <div v-if="event.media && event.media.length > 0" class="carousel-container">
+          <div class="carousel-slide" v-for="(media, index) in event.media" :key="media.id" v-show="index === currentSlide">
+            <img v-if="media.mediaType === 'image'" :src="getImageUrl(media.mediaUrl)" class="carousel-media" />
+            <video v-else-if="media.mediaType === 'video'" :src="getImageUrl(media.mediaUrl)" controls class="carousel-media autoplay-video"></video>
           </div>
-          <div class="role-actions" v-else>
-            <button 
-              @click="router.push(`/chat/${event.id}/${event.created_by}`)" 
-              class="btn btn-secondary chat-btn"
-            >
-              💬 Chat with Creator
-            </button>
-            
-            <button v-if="!isRegisteredForSelected" @click="registerForEvent" :disabled="registering" class="btn">
-              {{ registering ? 'Registering...' : 'Register for this Time Slot' }}
-            </button>
-            <div v-else class="registered-actions">
-              <span class="status-badge" :class="selectedSlotStatus">
-                {{ selectedSlotStatus === 'pending' ? '⏳ Pending Approval' : (selectedSlotStatus === 'rejected' ? '❌ Rejected' : '✅ Registered') }}
+          <button v-if="event.media.length > 1" @click="prevSlide" class="carousel-btn prev-btn">❮</button>
+          <button v-if="event.media.length > 1" @click="nextSlide" class="carousel-btn next-btn">❯</button>
+          <div v-if="event.media.length > 1" class="carousel-indicators">
+            <span v-for="(media, index) in event.media" :key="'ind-'+media.id" 
+                  :class="['indicator', { active: index === currentSlide }]" 
+                  @click="currentSlide = index">
+            </span>
+          </div>
+        </div>
+        <div v-else class="event-hero-banner" :style="{ backgroundImage: 'url(' + getImageUrl(event.imageUrl) + ')' }"></div>
+        
+        <!-- Back Button Overlay -->
+        <button class="back-btn" @click="router.back()">
+          ← Back
+        </button>
+      </div>
+
+      <!-- Main Body layout -->
+      <div class="main-layout">
+        <!-- Left / Body Content -->
+        <div class="event-body">
+          <div class="body-header">
+            <h1 class="event-title">{{ event.title }}</h1>
+            <div class="meta-badges">
+              <span class="badge creator-badge">
+                <span class="badge-icon">👤</span> By {{ event.creatorName || 'unknown' }}
               </span>
-              <button @click="deregisterForEvent" :disabled="registering" class="btn btn-danger btn-sm">
-                Cancel
+              <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" class="badge location-badge">
+                <span class="badge-icon">📍</span> {{ event.locationName }}
+              </a>
+            </div>
+          </div>
+          
+          <div v-if="event.timeSlots && event.timeSlots.length > 0" class="section time-slots-section">
+            <h3 class="section-title">Select a Time Slot</h3>
+            <div class="time-slot-scroll-container">
+              <button 
+                v-for="slot in event.timeSlots" 
+                :key="slot.id" 
+                class="time-slot-card"
+                :class="{ 
+                  active: selectedTimeSlot === slot.id, 
+                  full: slot.attendeeCount >= slot.maxAttendees && selectedTimeSlot !== slot.id, 
+                  booked: registeredSlots.some(s => s.slotId === slot.id) 
+                }"
+                @click="selectedTimeSlot = slot.id"
+                :disabled="slot.attendeeCount >= slot.maxAttendees && !registeredSlots.some(s => s.slotId === slot.id) && selectedTimeSlot !== slot.id"
+              >
+                <div class="slot-date">{{ new Date(slot.startTime).toLocaleString([], {weekday: 'short', month: 'short', day: 'numeric'}) }}</div>
+                <div class="slot-time-text">{{ new Date(slot.startTime).toLocaleString([], {hour: '2-digit', minute:'2-digit'}) }}</div>
+                <div class="slot-status">
+                  <span v-if="registeredSlots.some(s => s.slotId === slot.id)">✓ Registered</span>
+                  <span v-else>{{ slot.attendeeCount }} / {{ slot.maxAttendees }} Joined</span>
+                </div>
               </button>
             </div>
           </div>
-
-          <!-- Shared Group Chat Action -->
-          <div class="group-chat-action" v-if="canJoinGroupChat">
-            <button 
-              @click="router.push(`/group-chat/${event.id}`)" 
-              class="btn btn-primary group-chat-btn"
-            >
-              💬 Open Attendees Group Chat
-            </button>
-            <p class="group-chat-hint">Unlocked for approved attendees!</p>
+          
+          <div class="section event-description">
+            <h3 class="section-title">About this event</h3>
+            <p class="desc-text">{{ event.description }}</p>
           </div>
-        </template>
-        <p v-else class="login-msg">Log in to register for this event.</p>
+          
+          <div class="section map-section">
+            <h3 class="section-title">Location</h3>
+            <div class="map-wrapper glass-panel">
+              <EventMap :events="[event]" />
+            </div>
+          </div>
 
-        <!-- Attendee Management Panel (Creator Only) -->
-        <div class="attendees-panel" v-if="showAttendees && event.created_by === authStore.user?.id">
-          <h3>Attendees Data</h3>
-          <ul v-if="attendees.length > 0" class="attendees-list">
-            <li v-for="att in attendees" :key="att.id" class="attendee-item">
-              <div class="att-info">
-                <strong @click="router.push(`/chat/${event.id}/${att.id}`)" class="clickable-username" title="Message User">{{ att.username }}</strong>
-                <span class="att-email">{{ att.email }}</span>
-                <span class="att-timeslot" v-if="att.time_slot" style="font-size: 0.8rem; color: var(--primary-color); font-weight: 500; margin-top: 0.2rem;">⌚ {{ new Date(att.time_slot).toLocaleString([], {weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) }}</span>
-                <span class="att-status" :class="att.status">{{ att.status }}</span>
-              </div>
-              <div class="att-actions">
-                <button v-if="att.status !== 'approved'" @click="updateAttendeeStatus(att.id, 'approved')" class="btn btn-sm">Approve</button>
-                <button v-if="att.status !== 'rejected'" @click="updateAttendeeStatus(att.id, 'rejected')" class="btn btn-danger btn-sm">Reject</button>
-              </div>
-            </li>
-          </ul>
-          <p v-else style="color: var(--text-muted)">No one has registered for your event yet.</p>
+          <!-- Attendee Management Panel (Creator Only) -->
+          <div class="section attendees-panel" v-if="showAttendees && event.createdBy === authStore.user?.id">
+            <h3 class="section-title">Attendees Hub</h3>
+            <ul v-if="attendees.length > 0" class="attendees-list">
+              <li v-for="att in attendees" :key="att.id" class="attendee-card">
+                <div class="att-info">
+                  <strong @click="router.push(`/chat/${event.id}/${att.id}`)" class="clickable-username">{{ att.username }}</strong>
+                  <span class="att-email">{{ att.email }}</span>
+                  <span class="att-timeslot" v-if="att.timeSlot">⌚ {{ new Date(att.timeSlot).toLocaleString([], {weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) }}</span>
+                  <span class="badge" :class="att.status">{{ att.status }}</span>
+                </div>
+                <div class="att-actions">
+                  <button v-if="att.status !== 'approved'" @click="updateAttendeeStatus(att.id, 'approved')" class="btn-icon approve-btn" title="Approve">✓</button>
+                  <button v-if="att.status !== 'rejected'" @click="updateAttendeeStatus(att.id, 'rejected')" class="btn-icon reject-btn" title="Reject">✕</button>
+                </div>
+              </li>
+            </ul>
+            <p v-else class="empty-state">No one has registered for your event yet.</p>
+          </div>
         </div>
-        
-        <p v-if="message" class="status-msg" :class="{ 'error': message.includes('Failed') || message.includes('login') }">
-          {{ message }}
-        </p>
-      </div>
+
+        <!-- Right / Bottom Action Bar -->
+        <div class="action-sidebar">
+          <div class="action-panel glass-panel">
+            <template v-if="authStore.isAuthenticated">
+              <div class="role-actions" v-if="event.createdBy === authStore.user?.id">
+                <h4 class="action-title">Organizer Actions</h4>
+                <button @click="showAttendees = !showAttendees" class="action-btn outline-btn">
+                  👥 Manage Attendees ({{ attendees.length }})
+                </button>
+              </div>
+              <div class="role-actions" v-else>
+                <div v-if="selectedTimeSlot">
+                  <div class="slot-summary">
+                     Selected Slot: <strong>{{ new Date(event.timeSlots.find(s => s.id === selectedTimeSlot)?.startTime).toLocaleString([], {weekday: 'short', hour: '2-digit', minute:'2-digit'}) }}</strong>
+                  </div>
+                  <div v-if="isRegisteredForSelected" class="status-alert" :class="selectedSlotStatus">
+                    {{ selectedSlotStatus === 'pending' ? '⏳ Pending Organizer Approval' : (selectedSlotStatus === 'rejected' ? '❌ Registration Rejected' : '✅ You are registered!') }}
+                  </div>
+                </div>
+
+                <div class="main-actions-grid">
+                  <button v-if="!isRegisteredForSelected" @click="registerForEvent" :disabled="registering || !selectedTimeSlot" class="action-btn primary-btn pulse-glow">
+                    {{ registering ? 'Registering...' : 'Complete Registration' }}
+                  </button>
+                  <button v-else @click="deregisterForEvent" :disabled="registering" class="action-btn danger-btn">
+                    Cancel Registration
+                  </button>
+                  
+                  <button @click="router.push(`/chat/${event.id}/${event.createdBy}`)" class="action-btn secondary-btn">
+                    💬 Chat Organizer
+                  </button>
+                </div>
+              </div>
+
+              <!-- Group Chat Action -->
+              <div class="feature-divider" v-if="canJoinGroupChat || (selectedTimeSlot && !isRegisteredForSelected && event.createdBy !== authStore.user?.id)"></div>
+              
+              <div class="group-chat-action" v-if="canJoinGroupChat">
+                <button @click="router.push(`/group-chat/${event.id}/${selectedTimeSlot}`)" class="action-btn highlight-btn">
+                  <span class="icon">💬</span> Open Group Chat
+                </button>
+                <p class="feature-hint">Unlocked for this time slot!</p>
+              </div>
+              <div class="group-chat-action" v-else-if="selectedTimeSlot && !isRegisteredForSelected && event.createdBy !== authStore.user?.id">
+                 <p class="feature-hint locked-hint"><span class="icon">🔒</span> Register to unlock group chat</p>
+              </div>
+            </template>
+            <div v-else class="auth-prompt">
+              <h3>Join the Vibe</h3>
+              <p>Log in to reserve your spot at this event.</p>
+              <button @click="router.push('/login')" class="action-btn primary-btn">Login to Register</button>
+            </div>
+            
+            <p v-if="message" class="status-message" :class="{ 'error': message.includes('Failed') || message.includes('login') }">
+              {{ message }}
+            </p>
+          </div>
+        </div>
       </div>
     </div>
-    <div v-else class="card error">
-      <h2>{{ message }}</h2>
+    <div v-else class="error-page">
+      <h2>{{ message || 'Event not found.' }}</h2>
+      <button @click="router.push('/')" class="action-btn outline-btn">Go Back Home</button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.detail-container {
-  max-width: 900px;
-  margin: 2rem auto;
-  padding: 0 1rem;
+/* Page Variables & Resets */
+.event-detail-page {
+  position: relative;
+  min-height: 100vh;
+  background-color: var(--bg-color);
+  padding-bottom: 15rem; /* Space for action bar on mobile */
+  animation: fadeIn 0.4s ease-out;
 }
-.p-0 {
-  padding: 0;
-  overflow: hidden;
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
-.event-hero-banner {
-  width: 100%;
-  height: 350px;
-  background-size: cover;
-  background-position: center;
-  border-bottom: 1px solid var(--border-light);
+
+.spinner {
+  width: 40px; height: 40px;
+  border: 4px solid rgba(255,255,255,0.1);
+  border-left-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 100px auto;
 }
-.carousel-container {
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Hero Section (Edge to Edge) */
+.hero-section {
   position: relative;
   width: 100%;
-  height: 350px;
-  background: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 45vh;
+  min-height: 300px;
+  background-color: #000;
   overflow: hidden;
-  border-bottom: 1px solid var(--border-light);
 }
-.carousel-slide {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.carousel-media {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-.carousel-btn {
+.hero-section::after {
+  content: '';
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  bottom: 0; left: 0; right: 0;
+  height: 100px;
+  background: linear-gradient(to top, var(--bg-color), transparent);
+  pointer-events: none;
+}
+
+.carousel-container { width: 100%; height: 100%; position: relative; display: flex; align-items: center; justify-content: center; }
+.carousel-slide { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+.carousel-media { width: 100%; height: 100%; object-fit: cover; }
+.event-hero-banner { width: 100%; height: 100%; background-size: cover; background-position: center; }
+
+.back-btn {
+  position: absolute;
+  top: 20px;
+  left: 20px;
   background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.2);
   color: white;
-  border: none;
-  font-size: 2rem;
-  padding: 0.5rem 1rem;
+  padding: 8px 16px;
+  border-radius: 30px;
   cursor: pointer;
-  border-radius: 5px;
-  transition: background 0.3s;
-  z-index: 10;
-}
-.carousel-btn:hover {
-  background: rgba(0,0,0,0.8);
-}
-.prev-btn {
-  left: 10px;
-}
-.next-btn {
-  right: 10px;
-}
-.carousel-indicators {
-  position: absolute;
-  bottom: 15px;
-  display: flex;
-  gap: 8px;
-  justify-content: center;
-  width: 100%;
-  z-index: 10;
-}
-.indicator {
-  width: 12px;
-  height: 12px;
-  background: rgba(255,255,255,0.5);
-  border-radius: 50%;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-.indicator.active {
-  background: white;
-  box-shadow: 0 0 5px rgba(255,255,255,0.8);
-}
-.card-content {
-  padding: 2.5rem;
-}
-.event-title {
-  font-size: 2.5rem;
-  color: var(--primary-color);
-  margin-bottom: 0.5rem;
-}
-.creator-label {
-  color: var(--text-muted);
-  font-size: 1.1rem;
-  margin-bottom: 1.5rem;
-}
-.event-meta-banner {
-  background: var(--bg-color);
-  padding: 1rem;
-  border-radius: 0.5rem;
-  display: flex;
-  gap: 2rem;
-  margin-bottom: 2rem;
-}
-.location-link {
-  color: var(--primary-color);
-  text-decoration: none;
   font-weight: 500;
-  transition: color 0.2s;
-}
-.location-link:hover {
-  text-decoration: underline;
-  color: var(--secondary-color);
-}
-.event-description {
-  margin-bottom: 3rem;
-  font-size: 1.1rem;
-  line-height: 1.7;
-}
-.map-section {
-  margin-bottom: 3rem;
-}
-.map-section h3 {
-  margin-bottom: 1rem;
-}
-.map-wrapper {
-  height: 350px;
-  border-radius: 0.5rem;
-  overflow: hidden;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-.action-section {
-  text-align: center;
-  padding-top: 2rem;
-  border-top: 1px solid var(--border-light);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.5rem;
-}
-.chat-btn {
-  background-color: transparent;
-  color: var(--text-main);
-  border: 1px solid var(--border-light);
-  width: auto;
-}
-.chat-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.group-chat-action {
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border-light);
-  text-align: center;
-  width: 100%;
-}
-
-.group-chat-btn {
-  width: 100%;
-  background: var(--primary-color);
-  box-shadow: 0 0 20px rgba(var(--primary-rgb, 59, 130, 246), 0.3);
-}
-
-.group-chat-hint {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin-top: 0.5rem;
-}
-
-.status-msg {
-  margin-top: 1rem;
-  color: var(--secondary-color);
-  font-weight: 500;
-}
-.status-msg.error {
-  color: #ef4444; /* Red 500 */
-}
-.login-msg {
-  color: var(--text-muted);
-  font-style: italic;
-}
-.btn-danger {
-  background-color: #ef4444;
-  color: white;
-}
-.btn-danger:hover {
-  background-color: #dc2626;
-}
-
-.role-actions { display: flex; gap: 1rem; align-items: center; justify-content: center; flex-wrap: wrap; }
-.registered-actions { display: flex; align-items: center; gap: 1rem; }
-.status-badge { padding: 0.5rem 1rem; border-radius: 2rem; font-weight: 600; font-size: 0.9rem; border: 1px solid currentColor; }
-.status-badge.pending { background: rgba(234, 179, 8, 0.2); color: #eab308; }
-.status-badge.approved { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
-.status-badge.rejected { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
-
-.attendees-panel { margin-top: 2rem; width: 100%; border-top: 1px solid var(--border-light); padding-top: 1.5rem; text-align: left; }
-.attendees-panel h3 { margin-bottom: 1rem; color: var(--primary-color); }
-.attendees-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 1rem; }
-.attendee-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 0.5rem; border: 1px solid var(--border-light); }
-.att-info { display: flex; flex-direction: column; gap: 0.2rem; }
-.att-email { font-size: 0.85rem; color: var(--text-muted); }
-.att-status { text-transform: uppercase; font-size: 0.75rem; font-weight: bold; margin-top: 0.3rem; }
-.att-status.pending { color: #eab308; }
-.att-status.approved { color: #22c55e; }
-.att-status.rejected { color: #ef4444; }
-.att-actions { display: flex; gap: 0.5rem; }
-
-@media (max-width: 768px) {
-  .detail-container {
-    margin: 1rem auto;
-  }
-  .event-title {
-    font-size: 1.8rem;
-  }
-  .event-meta-banner {
-    flex-direction: column;
-    gap: 1rem;
-    padding: 1rem;
-  }
-  .card-content {
-    padding: 1.5rem;
-  }
-  .event-hero-banner, .carousel-container, .map-wrapper {
-    height: 250px;
-  }
-}
-
-.clickable-username {
-  cursor: pointer;
-  color: var(--primary-color);
-  text-decoration: none;
-  transition: color 0.2s;
-}
-
-.clickable-username:hover {
-  text-decoration: underline;
-  color: var(--primary-dark-color, #0ea5e9);
-}
-
-.time-slots-section {
-  margin: 1.5rem 0;
-}
-.time-slot-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 0.5rem;
-}
-.time-slot-pill {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  padding: 0.75rem 1rem;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  cursor: pointer;
   transition: all 0.2s;
-  color: var(--text-main);
-  text-align: left;
+  z-index: 10;
 }
-.time-slot-pill:hover:not(:disabled) {
-  border-color: var(--primary-color);
+.back-btn:hover { background: rgba(0,0,0,0.8); }
+
+.carousel-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); border: none; font-size: 1.5rem; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: 0.2s; z-index: 10; }
+.carousel-btn:hover { background: var(--primary-color); }
+.prev-btn { left: 15px; }
+.next-btn { right: 15px; }
+
+/* Main Layout & Glassmorphism */
+.main-layout {
+  position: relative;
+  max-width: 1200px;
+  margin: -40px auto 0;
+  padding: 0 1rem;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.event-body {
+  background: var(--bg-color);
+  border-radius: 24px 24px 0 0;
+  padding: 24px 0;
+  width: 100%;
+}
+
+.glass-panel {
+  background: rgba(30, 30, 35, 0.4);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-light);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+}
+
+/* Typography & Header */
+.body-header { margin-bottom: 2rem; }
+.event-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 2.2rem;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, #fff, var(--primary-color));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.meta-badges { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 30px;
+  font-size: 0.9rem;
+  color: var(--text-main);
+  text-decoration: none;
+}
+.badge.pending { color: #facc15; }
+.badge.approved { color: #34d399; }
+.badge.rejected { color: #ef4444; }
+
+.location-badge { color: var(--primary-color); transition: all 0.2s; }
+.location-badge:hover { background: rgba(56, 189, 248, 0.1); border-color: var(--primary-color); transform: translateY(-1px); }
+
+/* Sections */
+.section { margin-bottom: 2.5rem; animation: fadeInUp 0.5s ease backwards; }
+.section:nth-child(2) { animation-delay: 0.1s; }
+.section:nth-child(3) { animation-delay: 0.2s; }
+.section:nth-child(4) { animation-delay: 0.3s; }
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.section-title { font-family: 'Outfit', sans-serif; font-size: 1.4rem; margin-bottom: 1rem; color: #fff; font-weight: 700; }
+.desc-text { font-size: 1.05rem; color: var(--text-muted); line-height: 1.7; white-space: pre-wrap; }
+
+/* Time Slots (Scrollable Horizontal Cards) */
+.time-slot-scroll-container {
+  display: flex;
+  overflow-x: auto;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary-color) rgba(255,255,255,0.05);
+  -webkit-overflow-scrolling: touch;
+}
+.time-slot-scroll-container::-webkit-scrollbar { height: 6px; }
+.time-slot-scroll-container::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
+
+.time-slot-card {
+  flex: 0 0 auto;
+  min-width: 150px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 1.25rem 1rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  color: var(--text-muted);
+}
+.time-slot-card:hover:not(:disabled) {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.2);
   transform: translateY(-2px);
 }
-.time-slot-pill.active {
-  background: var(--primary-color);
-  color: #fff;
+.time-slot-card.active {
+  background: rgba(56, 189, 248, 0.1);
   border-color: var(--primary-color);
-}
-.time-slot-pill.booked {
-  background: rgba(34, 197, 94, 0.1);
-  border-color: #22c55e;
-  color: #22c55e;
-}
-.time-slot-pill.booked .slot-time, .time-slot-pill.booked .slot-capacity {
-  color: #22c55e;
-}
-.time-slot-pill.active .slot-time, .time-slot-pill.active .slot-capacity {
   color: #fff;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.15);
 }
-.time-slot-pill.full {
-  opacity: 0.5;
-  cursor: not-allowed;
+.time-slot-card.active::before {
+  content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: var(--primary-color);
 }
-.slot-time {
-  font-weight: 600;
-  margin-bottom: 0.2rem;
+.time-slot-card.booked {
+  border-color: var(--secondary-color);
+  background: rgba(52, 211, 153, 0.05);
+  color: var(--text-main);
 }
-.slot-capacity {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-</style>
+.time-slot-card.full { opacity: 0.5; cursor: not-allowed; }
 
+.slot-date { font-size: 0.85rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 4px; }
+.slot-time-text { font-size: 1.6rem; font-weight: 700; color: #fff; margin-bottom: 8px; font-family: 'Outfit', sans-serif; }
+.time-slot-card.booked .slot-time-text { color: var(--secondary-color); }
+.slot-status { font-size: 0.8rem; }
+
+/* Map */
+.map-wrapper { height: 300px; border-radius: 16px; overflow: hidden; padding: 4px; }
+
+/* Action Sidebar & Bottom Bar */
+.action-sidebar {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 100;
+  padding: 1rem;
+  background: linear-gradient(to top, rgba(9,9,11,1) 70%, rgba(9,9,11,0));
+  pointer-events: none; /* Let touches pass through gradient */
+}
+.action-panel {
+  pointer-events: auto; /* Re-enable for the actual panel */
+  border-radius: 20px;
+  padding: 1.25rem;
+  background: rgba(20, 20, 25, 0.7); /* Slightly darker for contrast */
+}
+
+.action-title { font-family: 'Outfit', sans-serif; color: #fff; margin-bottom: 1rem; font-size: 1.2rem; }
+.slot-summary { font-size: 0.95rem; color: var(--text-muted); margin-bottom: 8px; text-align: center; }
+.status-alert { font-size: 0.95rem; text-align: center; padding: 10px; border-radius: 8px; margin-bottom: 12px; font-weight: 600;}
+.status-alert.pending { background: rgba(234, 179, 8, 0.15); color: #facc15; }
+.status-alert.approved { background: rgba(52, 211, 153, 0.15); color: #34d399; }
+.status-alert.rejected { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+.main-actions-grid { display: flex; flex-direction: column; gap: 0.75rem; }
+.action-btn {
+  width: 100%;
+  padding: 12px 18px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.98rem;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  display: flex; justify-content: center; align-items: center; gap: 8px;
+}
+.primary-btn { background: var(--primary-color); color: #000; box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3); font-weight: 700; }
+.primary-btn:hover { background: var(--primary-hover); transform: translateY(-2px); }
+.primary-btn:disabled { background: #334155; box-shadow: none; color: #94a3b8; cursor: not-allowed; }
+
+.pulse-glow:not(:disabled) { animation: pulseGlow 2s infinite; }
+@keyframes pulseGlow { 0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4); } 70% { box-shadow: 0 0 0 12px rgba(56, 189, 248, 0); } 100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); } }
+
+.secondary-btn { background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.1); }
+.secondary-btn:hover { background: rgba(255,255,255,0.1); }
+.danger-btn { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
+.danger-btn:hover { background: rgba(239, 68, 68, 0.2); }
+.highlight-btn { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: #000; font-weight: 700; }
+.outline-btn { background: transparent; color: var(--primary-color); border: 1px solid var(--primary-color); }
+.outline-btn:hover { background: rgba(56, 189, 248, 0.1); }
+
+.feature-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 15px 0; }
+.feature-hint { font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-top: 8px; }
+.locked-hint { color: #facc15; }
+.status-message { text-align: center; margin-top: 10px; font-weight: 500; color: var(--secondary-color); font-size: 0.95rem; }
+.status-message.error { color: #ef4444; }
+
+/* Desktop Media Query */
+@media (min-width: 992px) {
+  .hero-section { height: 50vh; max-height: 500px; border-radius: 24px; margin-top: 2rem; }
+  .event-detail-page { padding-bottom: 2rem; }
+  .main-layout { flex-direction: row; margin-top: 2rem; align-items: flex-start; }
+  .event-body { flex: 1; min-width: 0; padding: 0; background: transparent; border-radius: 0; padding-right: 2rem; }
+  
+  .action-sidebar {
+    position: sticky;
+    top: 2rem;
+    width: 400px;
+    flex-shrink: 0;
+    padding: 0;
+    background: transparent;
+    pointer-events: auto;
+  }
+}
+
+/* Attendee Panel overrides */
+.attendee-card { background: rgba(0,0,0,0.2); border-radius: 12px; padding: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(255,255,255,0.05); }
+.att-info { display: flex; flex-direction: column; gap: 0.3rem; }
+.clickable-username { color: var(--primary-color); text-decoration: none; cursor: pointer; font-size: 1.1rem; }
+.clickable-username:hover { text-decoration: underline; }
+.att-email { color: var(--text-muted); font-size: 0.9rem; }
+.btn-icon { width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer; display: inline-flex; justify-content: center; align-items: center; color: white; margin-left: 8px; font-size: 1.2rem; }
+.approve-btn { background: rgba(52, 211, 153, 0.2); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
+.approve-btn:hover { background: #34d399; color: #000; }
+.reject-btn { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+.reject-btn:hover { background: #ef4444; color: #fff; }
+.empty-state { color: var(--text-muted); font-style: italic; }
+</style>

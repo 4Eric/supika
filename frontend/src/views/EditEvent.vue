@@ -41,20 +41,20 @@ onMounted(async () => {
     
     title.value = event.title
     description.value = event.description
-    locationName.value = event.location_name
+    locationName.value = event.locationName
     latitude.value = event.latitude
     longitude.value = event.longitude
-    requiresApproval.value = event.requires_approval
+    requiresApproval.value = event.requiresApproval
     
-    if (event.time_slots && event.time_slots.length > 0) {
-      timeSlots.value = event.time_slots.map(ts => ({
+    if (event.timeSlots && event.timeSlots.length > 0) {
+      timeSlots.value = event.timeSlots.map(ts => ({
         id: ts.id,
-        start_time: new Date(ts.start_time),
-        max_attendees: ts.max_attendees,
-        duration_minutes: ts.duration_minutes
+        startTime: new Date(ts.startTime),
+        maxAttendees: ts.maxAttendees,
+        durationMinutes: ts.durationMinutes
       }))
     } else {
-      timeSlots.value = [{ start_time: null, max_attendees: 5 }]
+      timeSlots.value = [{ startTime: null, maxAttendees: 5 }]
     }
     
     if (eventMapRef.value && latitude.value && longitude.value) {
@@ -143,18 +143,18 @@ const submitForm = async () => {
     const formData = new FormData()
     formData.append('title', title.value)
     formData.append('description', description.value)
-    formData.append('location_name', locationName.value)
+    formData.append('locationName', locationName.value)
     formData.append('latitude', latitude.value)
     formData.append('longitude', longitude.value)
-    formData.append('requires_approval', requiresApproval.value)
+    formData.append('requiresApproval', requiresApproval.value)
     
-    const validSlots = timeSlots.value.filter(s => s.start_time)
+    const validSlots = timeSlots.value.filter(s => s.startTime)
     if (validSlots.length === 0) {
       errorMsg.value = "Please configure at least one valid Date & Time slot."
       loading.value = false
       return
     }
-    formData.append('time_slots', JSON.stringify(validSlots))
+    formData.append('timeSlots', JSON.stringify(validSlots))
     
     if (imageFiles.value && imageFiles.value.length > 0) {
       imageFiles.value.forEach(file => {
@@ -211,7 +211,7 @@ const submitForm = async () => {
                 <div style="flex: 2;">
                   <label style="font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">Date and Time</label>
                   <VueDatePicker 
-                    v-model="slot.start_time"
+                    v-model="slot.startTime"
                     placeholder="Select Date and Time" 
                     dark
                   />
@@ -219,7 +219,7 @@ const submitForm = async () => {
                 
                 <div style="flex: 1;">
                   <label style="font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">Capacity</label>
-                  <input type="number" v-model="slot.max_attendees" class="form-control" min="1" required />
+                  <input type="number" v-model="slot.maxAttendees" class="form-control" min="1" required />
                 </div>
                 
                 <button type="button" v-if="timeSlots.length > 1" @click="removeTimeSlot(index)" class="btn btn-sm btn-danger" style="margin-bottom: 0.2rem;" title="Remove Slot">🗑️</button>

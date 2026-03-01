@@ -89,7 +89,7 @@ const pageTitle = computed(() => {
   <div class="app-container">
     <!-- Mobile Header -->
     <header class="mobile-header">
-      <router-link to="/" class="mobile-logo"><img src="@/assets/supika-logo.png" alt="Supika" class="logo-img-mobile" /></router-link>
+      <router-link to="/" class="mobile-logo"><img src="@/assets/supika-logo-refined.png" alt="Supika" class="logo-img-mobile" /></router-link>
       <h2 class="mobile-page-title">{{ pageTitle }}</h2>
       <button class="hamburger-btn" @click="toggleSidebar">
         ☰
@@ -101,7 +101,7 @@ const pageTitle = computed(() => {
 
     <aside class="sidebar" :class="{ 'active': isSidebarOpen }">
       <div class="logo">
-        <router-link to="/"><img src="@/assets/supika-logo.png" alt="Supika" class="logo-img" /></router-link>
+        <router-link to="/"><img src="@/assets/supika-logo-refined.png" alt="Supika" class="logo-img" /></router-link>
       </div>
       
       <nav class="nav-links">
@@ -193,22 +193,30 @@ const pageTitle = computed(() => {
 }
 
 .logo {
-  margin-bottom: 1.5rem;
+  margin-bottom: 2.5rem;
   text-align: center;
-  padding: 0.5rem 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .logo a {
   text-decoration: none;
-  display: inline-block;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
 }
 
 .logo-img {
-  width: 200px;
+  width: 100%;
+  max-width: 140px;
   height: auto;
   object-fit: contain;
-  filter: drop-shadow(0 0 16px rgba(56, 189, 248, 0.3));
-  transition: filter 0.3s ease, transform 0.3s ease;
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.4));
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .logo-img:hover {
@@ -449,10 +457,11 @@ const pageTitle = computed(() => {
 }
 
 .logo-img-mobile {
-  height: 28px;
+  height: 36px;
   width: auto;
   object-fit: contain;
-  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.3));
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.4));
 }
 
 .mobile-page-title {

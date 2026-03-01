@@ -112,15 +112,15 @@ const formatLocation = (loc) => {
 
     <div v-else class="events-grid">
       <div v-for="event in events" :key="event.id" class="card event-card">
-        <div class="card-banner" :style="{ backgroundImage: 'url(' + getImageUrl(event.image_url) + ')' }" @click="viewEvent(event.id)"></div>
+        <div class="card-banner" :style="{ backgroundImage: 'url(' + getImageUrl(event.imageUrl) + ')' }" @click="viewEvent(event.id)"></div>
         <div class="card-content">
           <div class="card-content-body" @click="viewEvent(event.id)">
             <h3>{{ event.title }}</h3>
             <div class="attendee-badge">
-              👥 {{ event.attendee_count || 0 }} / {{ event.max_attendees || 5 }} Attendees
+              👥 {{ event.attendeeCount || 0 }} / {{ event.maxAttendees || 5 }} Attendees
             </div>
             <p class="location-text">
-              📍 <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" @click.stop class="location-link">{{ formatLocation(event.location_name) }}</a>
+              📍 <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" @click.stop class="location-link">{{ formatLocation(event.locationName) }}</a>
             </p>
             <p class="date-text">📅 {{ new Date(event.date).toLocaleDateString() }}</p>
             <p class="desc-text">{{ event.description.substring(0, 100) }}...</p>

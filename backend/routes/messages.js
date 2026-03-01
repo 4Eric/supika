@@ -134,7 +134,7 @@ router.post('/', auth, async (req, res) => {
 // Check if user is an approved attendee or the event creator
 const isAttendeeOrCreator = async (req, res, next) => {
     try {
-        const { eventId } = req.params;
+        const { eventId, timeSlotId } = req.params;
         const userId = req.user.id;
         const pool = await poolPromise;
 
@@ -153,17 +153,17 @@ const isAttendeeOrCreator = async (req, res, next) => {
             return next();
         }
 
-        // Check if user is a registered attendee (approved or pending)
+        // Check if user is a registered attendee (approved or pending) for the specific time slot
         const regResult = await pool.query(`
             SELECT user_id FROM "Registrations" 
-            WHERE event_id = $1 AND user_id = $2 AND status != 'rejected'
-        `, [eventId, userId]);
+            WHERE event_id = $1 AND user_id = $2 AND time_slot_id = $3 AND status != 'rejected'
+        `, [eventId, userId, timeSlotId]);
 
         if (regResult.rows.length > 0) {
             return next();
         }
 
-        return res.status(403).json({ message: 'Access denied. Only registered attendees can access this chat.' });
+        return res.status(403).json({ message: 'Access denied. Only registered attendees for this time slot can access this chat.' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error verifying access' });
@@ -171,18 +171,18 @@ const isAttendeeOrCreator = async (req, res, next) => {
 };
 
 // Get group chat history
-router.get('/group/:eventId', [auth, isAttendeeOrCreator], async (req, res) => {
+router.get('/group/:eventId/:timeSlotId', [auth, isAttendeeOrCreator], async (req, res) => {
     try {
-        const { eventId } = req.params;
+        const { eventId, timeSlotId } = req.params;
         const pool = await poolPromise;
 
         const result = await pool.query(`
             SELECT gm.*, u.username as sender_name 
             FROM "GroupMessages" gm
             JOIN "Users" u ON gm.sender_id = u.id
-            WHERE gm.event_id = $1
+            WHERE gm.event_id = $1 AND gm.time_slot_id = $2
             ORDER BY gm.created_at ASC
-        `, [eventId]);
+        `, [eventId, timeSlotId]);
 
         res.json(result.rows);
     } catch (error) {
@@ -192,9 +192,9 @@ router.get('/group/:eventId', [auth, isAttendeeOrCreator], async (req, res) => {
 });
 
 // Send a group message
-router.post('/group/:eventId', [auth, isAttendeeOrCreator], async (req, res) => {
+router.post('/group/:eventId/:timeSlotId', [auth, isAttendeeOrCreator], async (req, res) => {
     try {
-        const { eventId } = req.params;
+        const { eventId, timeSlotId } = req.params;
         const { content } = req.body;
         const sender_id = req.user.id;
 
@@ -204,10 +204,10 @@ router.post('/group/:eventId', [auth, isAttendeeOrCreator], async (req, res) => 
 
         const pool = await poolPromise;
         const result = await pool.query(`
-            INSERT INTO "GroupMessages" (event_id, sender_id, content)
-            VALUES ($1, $2, $3)
+            INSERT INTO "GroupMessages" (event_id, time_slot_id, sender_id, content)
+            VALUES ($1, $2, $3, $4)
             RETURNING *
-        `, [eventId, sender_id, content]);
+        `, [eventId, timeSlotId, sender_id, content]);
 
         const newMessage = result.rows[0];
         const senderResult = await pool.query('SELECT username FROM "Users" WHERE id = $1', [sender_id]);
@@ -221,20 +221,20 @@ router.post('/group/:eventId', [auth, isAttendeeOrCreator], async (req, res) => 
 });
 
 // Get group members
-router.get('/group/:eventId/members', [auth, isAttendeeOrCreator], async (req, res) => {
+router.get('/group/:eventId/:timeSlotId/members', [auth, isAttendeeOrCreator], async (req, res) => {
     try {
-        const { eventId } = req.params;
+        const { eventId, timeSlotId } = req.params;
         const pool = await poolPromise;
 
-        // Get creator + approved attendees
+        // Get creator + approved attendees for this specific time slot
         const result = await pool.query(`
             SELECT DISTINCT u.id, u.username, 
                 CASE WHEN u.id = e.created_by THEN 'Organizer' ELSE 'Attendee' END as group_role
             FROM "Users" u
             JOIN "Events" e ON e.id = $1
-            LEFT JOIN "Registrations" r ON r.event_id = $1 AND r.user_id = u.id
+            LEFT JOIN "Registrations" r ON r.event_id = $1 AND r.user_id = u.id AND r.time_slot_id = $2
             WHERE u.id = e.created_by OR (r.status IS NOT NULL AND r.status != 'rejected')
-        `, [eventId]);
+        `, [eventId, timeSlotId]);
 
         res.json(result.rows);
     } catch (error) {

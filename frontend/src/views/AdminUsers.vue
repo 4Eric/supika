@@ -167,7 +167,7 @@ onMounted(fetchUsers)
                                 {{ user.role }}
                             </span>
                         </td>
-                        <td>{{ formatDate(user.created_at) }}</td>
+                        <td>{{ formatDate(user.createdAt) }}</td>
                         <td>
                             <div class="actions">
                                 <button class="btn-icon" @click="openEditModal(user)" title="Edit User">✏️</button>

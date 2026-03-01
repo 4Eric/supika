@@ -23,5 +23,9 @@
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^8.0.1",
     "pg": "^8.18.0"
+  },
+  "devDependencies": {
+    "autocannon": "^8.0.0",
+    "clinic": "^13.0.0"
   }
 }

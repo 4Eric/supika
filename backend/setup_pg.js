@@ -15,6 +15,7 @@ async function setupPostgres() {
 
             console.log('Dropping existing tables if they exist...');
             await client.query(`
+                DROP TABLE IF EXISTS "RefreshTokens" CASCADE;
                 DROP TABLE IF EXISTS "GroupMessages" CASCADE;
                 DROP TABLE IF EXISTS "Messages" CASCADE;
                 DROP TABLE IF EXISTS "Registrations" CASCADE;
@@ -32,6 +33,8 @@ async function setupPostgres() {
                     password_hash VARCHAR(255) NOT NULL,
                     email VARCHAR(100) UNIQUE NOT NULL,
                     role VARCHAR(20) DEFAULT 'user',
+                    reset_password_token VARCHAR(255),
+                    reset_password_expires TIMESTAMP,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             `);
@@ -105,8 +108,20 @@ async function setupPostgres() {
                 CREATE TABLE "GroupMessages" (
                     id SERIAL PRIMARY KEY,
                     event_id INT NOT NULL REFERENCES "Events"(id) ON DELETE CASCADE,
+                    time_slot_id INT NOT NULL REFERENCES "EventTimeSlots"(id) ON DELETE CASCADE,
                     sender_id INT NOT NULL REFERENCES "Users"(id) ON DELETE CASCADE,
                     content TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `);
+
+            console.log('Creating RefreshTokens table...');
+            await client.query(`
+                CREATE TABLE "RefreshTokens" (
+                    id SERIAL PRIMARY KEY,
+                    user_id INT NOT NULL REFERENCES "Users"(id) ON DELETE CASCADE,
+                    token VARCHAR(500) UNIQUE NOT NULL,
+                    expires_at TIMESTAMP NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             `);

@@ -78,6 +78,9 @@ const handleSubmit = async () => {
         <div class="form-group">
           <label for="password">Password</label>
           <input id="password" v-model="password" type="password" placeholder="••••••••" required />
+          <div v-if="isLoginMode" class="forgot-link-container">
+            <router-link to="/forgot-password" class="forgot-link">Forgot password?</router-link>
+          </div>
         </div>
 
         <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
@@ -260,6 +263,23 @@ const handleSubmit = async () => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+.forgot-link-container {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.25rem;
+}
+
+.forgot-link {
+  font-size: 0.8rem;
+  color: var(--primary-color);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.forgot-link:hover {
+  text-decoration: underline;
 }
 
 /* Toggle */

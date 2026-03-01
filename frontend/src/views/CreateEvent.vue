@@ -16,11 +16,11 @@ const longitude = ref(null)
 const imageFiles = ref([])
 const requiresApproval = ref(false)
 const timeSlots = ref([
-  { start_time: null, max_attendees: 5 }
+  { startTime: null, maxAttendees: 5 }
 ])
 
 const addTimeSlot = () => {
-  timeSlots.value.push({ start_time: null, max_attendees: 5 })
+  timeSlots.value.push({ startTime: null, maxAttendees: 5 })
 }
 
 const removeTimeSlot = (index) => {
@@ -128,18 +128,18 @@ const submitForm = async () => {
     const formData = new FormData()
     formData.append('title', title.value)
     formData.append('description', description.value)
-    formData.append('location_name', locationName.value)
+    formData.append('locationName', locationName.value)
     formData.append('latitude', latitude.value)
     formData.append('longitude', longitude.value)
-    formData.append('requires_approval', requiresApproval.value)
+    formData.append('requiresApproval', requiresApproval.value)
     
-    const validSlots = timeSlots.value.filter(s => s.start_time)
+    const validSlots = timeSlots.value.filter(s => s.startTime)
     if (validSlots.length === 0) {
       errorMsg.value = "Please configure at least one valid Date & Time slot."
       loading.value = false
       return
     }
-    formData.append('time_slots', JSON.stringify(validSlots))
+    formData.append('timeSlots', JSON.stringify(validSlots))
     
     if (imageFiles.value && imageFiles.value.length > 0) {
       imageFiles.value.forEach(file => {
@@ -196,7 +196,7 @@ const submitForm = async () => {
                 <div style="flex: 2;">
                   <label style="font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">Date and Time</label>
                   <VueDatePicker 
-                    v-model="slot.start_time"
+                    v-model="slot.startTime"
                     placeholder="Select Date and Time" 
                     dark
                   />
@@ -204,7 +204,7 @@ const submitForm = async () => {
                 
                 <div style="flex: 1;">
                   <label style="font-size: 0.85rem; color: var(--text-muted); display: block; margin-bottom: 0.3rem;">Capacity</label>
-                  <input type="number" v-model="slot.max_attendees" class="form-control" min="1" required />
+                  <input type="number" v-model="slot.maxAttendees" class="form-control" min="1" required />
                 </div>
                 
                 <button type="button" v-if="timeSlots.length > 1" @click="removeTimeSlot(index)" class="btn btn-sm btn-danger" style="margin-bottom: 0.2rem;" title="Remove Slot">🗑️</button>

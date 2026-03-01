@@ -55,7 +55,7 @@ const router = createRouter({
             meta: { requiresAuth: true }
         },
         {
-            path: '/group-chat/:eventId',
+            path: '/group-chat/:eventId/:timeSlotId',
             name: 'group-chat',
             component: () => import('@/views/GroupChatView.vue'),
             meta: { requiresAuth: true }
@@ -77,6 +77,16 @@ const router = createRouter({
             name: 'admin-users',
             component: () => import('@/views/AdminUsers.vue'),
             meta: { requiresAuth: true, requiresAdmin: true }
+        },
+        {
+            path: '/forgot-password',
+            name: 'forgot-password',
+            component: () => import('@/views/ForgotPassword.vue')
+        },
+        {
+            path: '/reset-password',
+            name: 'reset-password',
+            component: () => import('@/views/ResetPassword.vue')
         }
     ]
 })

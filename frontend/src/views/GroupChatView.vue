@@ -12,6 +12,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const eventId = route.params.eventId
+const timeSlotId = route.params.timeSlotId
 
 const event = ref(null)
 const messages = ref([])
@@ -42,7 +43,7 @@ const fetchMessages = async () => {
   if (!authStore.isAuthenticated) return
   
   try {
-    const res = await axios.get(`${API_URL}/api/messages/group/${eventId}`, {
+    const res = await axios.get(`${API_URL}/api/messages/group/${eventId}/${timeSlotId}`, {
       headers: { 'x-auth-token': authStore.token }
     })
     
@@ -57,7 +58,7 @@ const fetchMessages = async () => {
 
 const fetchMembers = async () => {
   try {
-    const res = await axios.get(`${API_URL}/api/messages/group/${eventId}/members`, {
+    const res = await axios.get(`${API_URL}/api/messages/group/${eventId}/${timeSlotId}/members`, {
       headers: { 'x-auth-token': authStore.token }
     })
     members.value = res.data
@@ -102,7 +103,7 @@ const sendMessage = async () => {
   sending.value = true
   
   try {
-    const res = await axios.post(`${API_URL}/api/messages/group/${eventId}`, {
+    const res = await axios.post(`${API_URL}/api/messages/group/${eventId}/${timeSlotId}`, {
       content: newMessage.value.trim()
     }, {
       headers: { 'x-auth-token': authStore.token }
@@ -139,7 +140,11 @@ const toggleMembers = () => {
           <button @click="goBack" class="btn btn-sm btn-outline">← Event</button>
           <div class="chat-title">
             <h2>{{ event?.title }}</h2>
-            <p class="subtitle">Attendees Group Chat • {{ members.length }} Members</p>
+            <p class="subtitle" v-if="event?.timeSlots">
+              Attendees Group Chat • 
+              {{ new Date(event.timeSlots.find(s => s.id == timeSlotId)?.startTime).toLocaleString([], {weekday: 'short', hour: '2-digit', minute:'2-digit'}) }} • 
+              {{ members.length }} Members
+            </p>
           </div>
           <button @click="toggleMembers" class="btn btn-sm btn-members">
             👥 Members

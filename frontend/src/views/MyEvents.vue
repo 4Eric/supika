@@ -37,10 +37,10 @@ const deregister = async (eventId, timeSlotId, eventObj) => {
     const authStore = (await import('@/stores/auth')).useAuthStore()
     await axios.delete(`${API_URL}/api/events/${eventId}/register`, {
       headers: { 'x-auth-token': authStore.token },
-      data: { time_slot_id: timeSlotId }
+      data: { timeSlotId: timeSlotId }
     })
     // Remove from local list
-    events.value = events.value.filter(e => !(e.id === eventId && e.time_slot_id === timeSlotId))
+    events.value = events.value.filter(e => !(e.id === eventId && e.timeSlotId === timeSlotId))
   } catch (error) {
     errorMsg.value = "Failed to cancel registration."
   }
@@ -87,12 +87,12 @@ const formatLocation = (loc) => {
     </div>
 
     <div v-else class="events-grid">
-      <div v-for="event in events" :key="`${event.id}-${event.time_slot_id}`" class="card event-card" @click="viewEvent(event.id)">
-        <div class="card-banner" :style="{ backgroundImage: 'url(' + getImageUrl(event.image_url) + ')' }"></div>
+      <div v-for="event in events" :key="`${event.id}-${event.timeSlotId}`" class="card event-card" @click="viewEvent(event.id)">
+        <div class="card-banner" :style="{ backgroundImage: 'url(' + getImageUrl(event.imageUrl) + ')' }"></div>
         <div class="card-content">
           <h3>{{ event.title }}</h3>
           <p class="location-text">
-            📍 <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" @click.stop class="location-link">{{ formatLocation(event.location_name) }}</a>
+            📍 <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" @click.stop class="location-link">{{ formatLocation(event.locationName) }}</a>
           </p>
           <p class="date-text">📅 {{ new Date(event.date).toLocaleDateString() }} at {{ new Date(event.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}</p>
           <p class="desc-text">{{ event.description.substring(0, 100) }}...</p>
@@ -101,7 +101,7 @@ const formatLocation = (loc) => {
             <span class="status-badge" :class="event.status">
               {{ event.status === 'pending' ? '⏳ Pending' : (event.status === 'rejected' ? '❌ Rejected' : '✅ Approved') }}
             </span>
-            <button @click="deregister(event.id, event.time_slot_id, $event)" class="btn btn-danger btn-sm">Cancel</button>
+            <button @click="deregister(event.id, event.timeSlotId, $event)" class="btn btn-danger btn-sm">Cancel</button>
           </div>
         </div>
       </div>
