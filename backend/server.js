@@ -23,6 +23,9 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Health Check (for heartbeats)
+app.get('/health', (req, res) => res.status(200).send('OK'));
+
 // Serve static uploaded files (fallback for legacy local uploads)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
