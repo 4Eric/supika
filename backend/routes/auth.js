@@ -72,5 +72,3 @@ router.put('/admin/users/:id', [auth, adminOnly], authController.adminUpdateUser
 router.delete('/admin/users/:id', [auth, adminOnly], authController.adminDeleteUser);
 
 module.exports = router;
-
-module.exports = router;
