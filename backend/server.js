@@ -6,6 +6,9 @@ require('dotenv').config();
 
 const app = express();
 
+// Trust the proxy (Render load balancer) for express-rate-limit
+app.set('trust proxy', 1);
+
 // Security Headers
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
