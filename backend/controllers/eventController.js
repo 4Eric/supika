@@ -1,22 +1,44 @@
 const { poolPromise } = require('../config/db');
 const { mapToCamelCase } = require('../utils/mapper');
 const { sendConfirmationEmail } = require('../utils/mailer');
+const cacheService = require('../utils/cacheService');
 
 const getAllEvents = async (req, res) => {
     try {
         const limit = parseInt(req.query.limit) || 20;
         const offset = parseInt(req.query.offset) || 0;
+        const timeFilter = req.query.time_filter === 'past' ? 'past' : 'upcoming';
+
+        // Use a cache key that represents the query but allow for mutation
+        const cacheKey = `all_events_${timeFilter}`;
+        let cachedEvents = cacheService.get(cacheKey);
+
+        if (cachedEvents) {
+            // Return slice from cache
+            const slice = cachedEvents.slice(offset, offset + limit);
+            return res.json(slice);
+        }
+
         const pool = await poolPromise;
+        const timeComparison = timeFilter === 'past' ? '<' : '>=';
+        const sortOrder = timeFilter === 'past' ? 'DESC' : 'ASC';
+
+        // Fetch a larger set (e.g. 1000) to keep the cache meaningful for pagination/map
         const result = await pool.query(`
             SELECT e.*, u.username as creator_name,
             (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) AS date,
             (SELECT COUNT(*) FROM "Registrations" r JOIN "EventTimeSlots" ts ON r.time_slot_id = ts.id WHERE ts.event_id = e.id AND (r.status = 'approved' OR r.status IS NULL)) AS attendee_count
             FROM "Events" e 
             LEFT JOIN "Users" u ON e.created_by = u.id 
-            ORDER BY (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) ASC
-            LIMIT $1 OFFSET $2
-        `, [limit, offset]);
-        res.json(mapToCamelCase(result.rows));
+            WHERE (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) ${timeComparison} NOW()
+            ORDER BY (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) ${sortOrder}
+            LIMIT 1000
+        `);
+
+        const allMapped = mapToCamelCase(result.rows);
+        cacheService.set(cacheKey, allMapped);
+
+        res.json(allMapped.slice(offset, offset + limit));
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
@@ -61,6 +83,10 @@ const getHostedEvents = async (req, res) => {
 
 const getEventById = async (req, res) => {
     try {
+        const cacheKey = `event_${req.params.id}`;
+        const cachedEvent = cacheService.get(cacheKey);
+        if (cachedEvent) return res.json(cachedEvent);
+
         const pool = await poolPromise;
         const result = await pool.query(`
             SELECT e.*, u.username as creator_name 
@@ -89,7 +115,12 @@ const getEventById = async (req, res) => {
         `, [event.id]);
 
         event.media = mediaResult.rows;
-        res.json(mapToCamelCase(event));
+        const mapped = mapToCamelCase(event);
+
+        // Cache for 30 seconds
+        cacheService.set(cacheKey, mapped, 30);
+
+        res.json(mapped);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
@@ -186,6 +217,11 @@ const createEvent = async (req, res) => {
         await insertTimeSlots(client, eventId, data.timeSlots, data.date);
         await insertEventMedia(client, eventId, req.files);
         await client.query('COMMIT');
+
+        // Invalidate global events caches on new creation
+        cacheService.del('all_events_upcoming');
+        cacheService.del('all_events_past');
+
         res.status(201).json(mapToCamelCase(result.rows[0]));
     } catch (error) {
         await client.query('ROLLBACK');
@@ -245,6 +281,11 @@ const updateEvent = async (req, res) => {
         await performUpdate(client, eventId, data, req.files);
         await client.query('COMMIT');
 
+        // Invalidate caches
+        cacheService.del('all_events_upcoming');
+        cacheService.del('all_events_past');
+        cacheService.del(`event_${eventId}`);
+
         res.json({ message: 'Updated' });
     } catch (error) {
         if (client) await client.query('ROLLBACK');
@@ -272,6 +313,22 @@ const registerForEvent = async (req, res) => {
         await pool.query('INSERT INTO "Registrations" (user_id, event_id, time_slot_id, status) VALUES ($1, $2, $3, $4)', [req.user.id, event.id, slotId, event.requires_approval ? 'pending' : 'approved']);
         const u = await pool.query('SELECT email FROM "Users" WHERE id = $1', [req.user.id]);
         if (u.rows.length > 0) sendConfirmationEmail(u.rows[0].email, event);
+
+        // Mutate Cache: Increment attendee count in the global lists without flushing them
+        ['all_events_upcoming', 'all_events_past'].forEach(key => {
+            const currentEvents = cacheService.get(key);
+            if (currentEvents) {
+                const idx = currentEvents.findIndex(e => e.id == req.params.id);
+                if (idx !== -1) {
+                    if (!event.requires_approval) {
+                        currentEvents[idx].attendeeCount = (parseInt(currentEvents[idx].attendeeCount) || 0) + 1;
+                        cacheService.set(key, currentEvents);
+                    }
+                }
+            }
+        });
+        cacheService.del(`event_${req.params.id}`);
+
         res.json({ message: 'Registered' });
     } catch (e) {
         console.error(e);
@@ -287,6 +344,21 @@ const deregisterFromEvent = async (req, res) => {
         if (slotId) { sql += ' AND time_slot_id = $3'; params.push(slotId); }
         const r = await pool.query(sql, params);
         if (r.rowCount === 0) return res.status(404).json({ message: 'Not found' });
+
+        // Mutate Cache: Decrement attendee count
+        ['all_events_upcoming', 'all_events_past'].forEach(key => {
+            const currentEvents = cacheService.get(key);
+            if (currentEvents) {
+                const idx = currentEvents.findIndex(e => e.id == req.params.id);
+                if (idx !== -1) {
+                    const newCount = (parseInt(currentEvents[idx].attendeeCount) || 0) - 1;
+                    currentEvents[idx].attendeeCount = Math.max(0, newCount);
+                    cacheService.set(key, currentEvents);
+                }
+            }
+        });
+        cacheService.del(`event_${req.params.id}`);
+
         res.json({ message: 'Deregistered' });
     } catch (e) { console.error(e); res.status(500).json({ message: 'Error' }); }
 };
@@ -333,6 +405,12 @@ const deleteEvent = async (req, res) => {
             await client.query('DELETE FROM "EventTimeSlots" WHERE event_id = $1', [id]);
             await client.query('DELETE FROM "Events" WHERE id = $1', [id]);
             await client.query('COMMIT');
+
+            // Invalidate caches
+            cacheService.del('all_events_upcoming');
+            cacheService.del('all_events_past');
+            cacheService.del(`event_${id}`);
+
             res.json({ message: 'Deleted' });
         } catch (err) { await client.query('ROLLBACK'); throw err; }
         finally { client.release(); }

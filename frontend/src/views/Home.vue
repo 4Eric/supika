@@ -20,7 +20,8 @@ const filters = [
   { label: 'Tomorrow', icon: '🌅' },
   { label: 'This Weekend', icon: '🎉' },
   { label: 'Next Week', icon: '⏭️' },
-  { label: 'Auto-Accept', icon: '⚡' }
+  { label: 'Auto-Accept', icon: '⚡' },
+  { label: 'Past', icon: '🕰️' }
 ]
 
 // Pagination State
@@ -33,7 +34,8 @@ let observer = null
 
 const fetchEvents = async (append = false) => {
   try {
-    const res = await axios.get(`${API_URL}/api/events?limit=${limit}&offset=${offset.value}`)
+    const timeFilter = activeFilter.value === 'Past' ? 'past' : 'upcoming'
+    const res = await axios.get(`${API_URL}/api/events?limit=${limit}&offset=${offset.value}&time_filter=${timeFilter}`)
     const newEvents = res.data
     
     if (newEvents.length < limit) {
@@ -46,12 +48,28 @@ const fetchEvents = async (append = false) => {
       allEvents.value = newEvents
     }
     
-    // Always sort by date after fetching
-    allEvents.value.sort((a, b) => new Date(a.date) - new Date(b.date))
+    // Sort logic: ascending for upcoming, descending for past
+    if (timeFilter === 'past') {
+      allEvents.value.sort((a, b) => new Date(b.date) - new Date(a.date))
+    } else {
+      allEvents.value.sort((a, b) => new Date(a.date) - new Date(b.date))
+    }
   } catch (err) {
     console.error('Failed to load events:', err)
   }
 }
+
+// Re-fetch when filter category changes significantly (Upcoming vs Past)
+import { watch } from 'vue'
+watch(activeFilter, (newVal, oldVal) => {
+  const wasPast = oldVal === 'Past'
+  const isPast = newVal === 'Past'
+  if (wasPast !== isPast) {
+    offset.value = 0
+    hasMore.value = true
+    fetchEvents()
+  }
+})
 
 const loadMore = async () => {
   if (loadingMore.value || !hasMore.value) return
@@ -121,7 +139,9 @@ const timeFilteredEvents = computed(() => {
 
     filtered = filtered.filter(e => {
       const eDate = new Date(e.date)
-      if (activeFilter.value === 'Today') {
+      if (activeFilter.value === 'Past') {
+        return eDate < now
+      } else if (activeFilter.value === 'Today') {
         return eDate.toDateString() === todayStr
       } else if (activeFilter.value === 'Tomorrow') {
         const tmrw = new Date(now)
@@ -226,6 +246,7 @@ const goToEvent = (id) => {
     <div class="masonry-grid" v-else>
       <div
         class="masonry-card"
+        :class="{ 'is-past': activeFilter === 'Past' }"
         v-for="event in feedEvents"
         :key="event.id"
         @click="goToEvent(event.id)"
@@ -374,6 +395,14 @@ const goToEvent = (id) => {
 .masonry-card:hover {
   transform: translateY(-3px);
   box-shadow: 0 8px 28px rgba(56, 189, 248, 0.15), 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.masonry-card.is-past {
+  filter: grayscale(0.8);
+  opacity: 0.7;
+}
+.masonry-card.is-past:hover {
+  filter: grayscale(0.3);
+  opacity: 1;
 }
 
 /* Image */
