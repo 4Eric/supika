@@ -17,8 +17,13 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173,http:/
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow same-origin (null) or whitelisted origins or any .onrender.com for now
-        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.onrender.com')) {
+        // Allow same-origin (null) or whitelisted origins or any .onrender.com / .vercel.app
+        const isWhitelisted = !origin ||
+            allowedOrigins.includes(origin) ||
+            origin.endsWith('.onrender.com') ||
+            origin.endsWith('.vercel.app');
+
+        if (isWhitelisted) {
             callback(null, true);
         } else {
             console.warn(`CORS BLOCKED for origin: ${origin}`);
