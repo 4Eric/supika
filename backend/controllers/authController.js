@@ -43,14 +43,30 @@ const login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
         const payload = { user: { id: user.id, role: user.role } };
-        jwt.sign(payload, process.env.JWT_SECRET || 'secret', { expiresIn: '1h' }, async (err, token) => {
-            if (err) throw err;
-            const refreshToken = crypto.randomBytes(64).toString('hex');
-            const expiresAt = new Date(); expiresAt.setDate(expiresAt.getDate() + 7);
-            await pool.query('INSERT INTO "RefreshTokens" (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, refreshToken, expiresAt]);
-            res.json({ token, refreshToken, user: mapToCamelCase({ id: user.id, username: user.username, email: user.email, role: user.role }) });
+        const secret = process.env.JWT_SECRET || 'secret';
+
+        const token = await new Promise((resolve, reject) => {
+            jwt.sign(payload, secret, { expiresIn: '1h' }, (err, token) => {
+                if (err) reject(err);
+                else resolve(token);
+            });
         });
-    } catch (error) { console.error(error); res.status(500).json({ message: 'Error' }); }
+
+        const refreshToken = crypto.randomBytes(64).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+
+        await pool.query('INSERT INTO "RefreshTokens" (user_id, token, expires_at) VALUES ($1, $2, $3)', [user.id, refreshToken, expiresAt]);
+
+        res.json({
+            token,
+            refreshToken,
+            user: mapToCamelCase({ id: user.id, username: user.username, email: user.email, role: user.role })
+        });
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(500).json({ message: 'Internal server error during login' });
+    }
 };
 
 const updateProfile = async (req, res) => {
@@ -82,10 +98,20 @@ const refreshToken = async (req, res) => {
         const userRes = await pool.query('SELECT id, role FROM "Users" WHERE id = $1', [result.rows[0].user_id]);
         if (userRes.rows.length === 0) return res.status(401).json({ message: 'Not found' });
         const payload = { user: { id: userRes.rows[0].id, role: userRes.rows[0].role } };
-        jwt.sign(payload, process.env.JWT_SECRET || 'secret', { expiresIn: '1h' }, (err, token) => {
-            if (err) throw err; res.json({ token });
+        const secret = process.env.JWT_SECRET || 'secret';
+
+        const token = await new Promise((resolve, reject) => {
+            jwt.sign(payload, secret, { expiresIn: '1h' }, (err, token) => {
+                if (err) reject(err);
+                else resolve(token);
+            });
         });
-    } catch (e) { console.error(e); res.status(500).json({ message: 'Error' }); }
+
+        res.json({ token });
+    } catch (e) {
+        console.error('Refresh token error:', e);
+        res.status(500).json({ message: 'Internal server error during token refresh' });
+    }
 };
 
 const forgotPassword = async (req, res) => {

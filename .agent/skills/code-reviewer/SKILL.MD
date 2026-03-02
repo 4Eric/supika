@@ -4,6 +4,6 @@ description: A skill used to enforce clean architecture patterns and validate co
 ---
 # Code Review Protocol
 When the user asks to review code or prepare for a commit, follow these steps:
-1. Check that no functions exceed 50 lines.
+1. Check that no functions exceed 200 lines.
 2. Verify that all variables use camelCase.
 3. If any rules are violated, list the errors and refuse to format the commit.

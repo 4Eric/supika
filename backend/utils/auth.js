@@ -15,7 +15,9 @@ const auth = (req, res, next) => {
         req.user = decoded.user;
         next();
     } catch (err) {
-        console.error('JWT Verification Error:', err.message);
+        console.error('DEBUG: JWT Verification Failure');
+        console.error('Error:', err.message);
+        console.error('Token:', token ? (token.substring(0, 10) + '...') : 'None');
         res.status(401).json({ message: 'Token is not valid' });
     }
 };

@@ -96,6 +96,32 @@ const getEventById = async (req, res) => {
     }
 };
 
+const getPrimaryImage = (files) => {
+    if (!files || files.length === 0) return 'default_event.png';
+    const firstImg = files.find(f => f.mimetype.startsWith('image/'));
+    if (!firstImg) return 'default_event.png';
+    return process.env.USE_LOCAL_STORAGE === 'true' ? firstImg.filename : firstImg.path;
+};
+
+const normalizeEventData = (body) => {
+    const {
+        title, description, locationName, location_name,
+        latitude, longitude, requiresApproval, requires_approval,
+        timeSlots, time_slots, date
+    } = body;
+
+    return {
+        title,
+        description,
+        locationName: locationName || location_name,
+        latitude: (latitude !== undefined && latitude !== null) ? parseFloat(latitude) : null,
+        longitude: (longitude !== undefined && longitude !== null) ? parseFloat(longitude) : null,
+        requiresApproval: (requiresApproval !== undefined) ? (requiresApproval === 'true' || requiresApproval === true) : (requires_approval === 'true' || requires_approval === true),
+        timeSlots: timeSlots || time_slots,
+        date
+    };
+};
+
 const insertTimeSlots = async (client, eventId, timeSlots, defaultDate) => {
     let parsedSlots = [];
     try {
@@ -108,18 +134,32 @@ const insertTimeSlots = async (client, eventId, timeSlots, defaultDate) => {
         parsedSlots = [{ start_time: startTime.toISOString(), duration_minutes: 60, max_attendees: 5 }];
     }
     for (let slot of parsedSlots) {
+        const startTime = slot.startTime || slot.start_time;
+        const durationMinutes = slot.durationMinutes || slot.duration_minutes;
+        const maxAttendees = slot.maxAttendees || slot.max_attendees;
+
+        if (!startTime) {
+            console.warn("Skipping slot with missing start time");
+            continue;
+        }
+
         await client.query(`
             INSERT INTO "EventTimeSlots" (event_id, start_time, duration_minutes, max_attendees)
             VALUES ($1, $2, $3, $4)
-        `, [eventId, new Date(slot.start_time).toISOString(), parseInt(slot.duration_minutes) || 60, parseInt(slot.max_attendees) || 5]);
+        `, [
+            eventId,
+            new Date(startTime).toISOString(),
+            parseInt(durationMinutes) || 60,
+            parseInt(maxAttendees) || 5
+        ]);
     }
 };
 
 const insertEventMedia = async (client, eventId, files) => {
     if (!files || files.length === 0) return;
     for (let file of files) {
-        const mediaType = file.mimetype.startsWith('video/') ? 'video' : 'image';
         const mediaUrl = process.env.USE_LOCAL_STORAGE === 'true' ? file.filename : file.path;
+        const mediaType = file.mimetype.startsWith('image/') ? 'image' : 'video';
         await client.query(`
             INSERT INTO "EventMedia" (event_id, media_url, media_type)
             VALUES ($1, $2, $3)
@@ -128,88 +168,91 @@ const insertEventMedia = async (client, eventId, files) => {
 };
 
 const createEvent = async (req, res) => {
-    const {
-        title,
-        description,
-        locationName,
-        location_name,
-        latitude,
-        longitude,
-        requiresApproval,
-        requires_approval,
-        timeSlots,
-        time_slots,
-        date
-    } = req.body;
-
-    // Support both cases
-    const locName = locationName || location_name;
-    const reqApproval = (requiresApproval !== undefined) ? requiresApproval : requires_approval;
-    const tSlots = timeSlots || time_slots;
+    const data = normalizeEventData(req.body);
     const pool = await poolPromise;
     const client = await pool.connect();
     try {
         await client.query('BEGIN');
-        let primaryImage = 'default_event.png';
-        if (req.files && req.files.length > 0) {
-            const firstImg = req.files.find(f => f.mimetype.startsWith('image/'));
-            if (firstImg) primaryImage = process.env.USE_LOCAL_STORAGE === 'true' ? firstImg.filename : firstImg.path;
-        }
+        const primaryImage = getPrimaryImage(req.files);
         const result = await client.query(`
             INSERT INTO "Events" (title, description, location_name, latitude, longitude, created_by, image_url, requires_approval)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
-        `, [title, description, locName, parseFloat(latitude) || null, parseFloat(longitude) || null, req.user.id, primaryImage, reqApproval === 'true' || reqApproval === true]);
+        `, [
+            data.title || null, data.description || null, data.locationName || null,
+            data.latitude, data.longitude, req.user.id,
+            primaryImage, data.requiresApproval
+        ]);
         const eventId = result.rows[0].id;
-        await insertTimeSlots(client, eventId, tSlots, date);
+        await insertTimeSlots(client, eventId, data.timeSlots, data.date);
         await insertEventMedia(client, eventId, req.files);
         await client.query('COMMIT');
         res.status(201).json(mapToCamelCase(result.rows[0]));
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error(error);
-        res.status(500).json({ message: 'Server error' });
+        console.error('DEBUG: Create Event ERROR:', error);
+        res.status(500).json({ message: 'Server error during event creation' });
     } finally {
         client.release();
     }
 };
 
+const performUpdate = async (client, eventId, data, files) => {
+    let params = [
+        data.title, data.description, data.locationName,
+        data.latitude, data.longitude, data.requiresApproval
+    ];
+    let sql = `UPDATE "Events" SET title=$1, description=$2, location_name=$3, latitude=$4, longitude=$5, requires_approval=$6`;
+    let paramCount = 6;
+
+    if (files && files.length > 0) {
+        const firstImg = files.find(fi => fi.mimetype.startsWith('image/'));
+        if (firstImg) {
+            const imageUrl = process.env.USE_LOCAL_STORAGE === 'true' ? firstImg.filename : firstImg.path;
+            paramCount++;
+            sql += `, image_url = $${paramCount}`;
+            params.push(imageUrl);
+        }
+    }
+
+    paramCount++;
+    sql += ` WHERE id = $${paramCount}`;
+    params.push(eventId);
+
+    await client.query(sql, params);
+
+    if (data.timeSlots) {
+        await client.query('DELETE FROM "EventTimeSlots" WHERE event_id = $1', [eventId]);
+        await insertTimeSlots(client, eventId, data.timeSlots);
+    }
+
+    if (files && files.length > 0) {
+        await client.query('DELETE FROM "EventMedia" WHERE event_id = $1', [eventId]);
+        await insertEventMedia(client, eventId, files);
+    }
+};
+
 const updateEvent = async (req, res) => {
     const eventId = req.params.id;
-    const {
-        title,
-        description,
-        locationName,
-        location_name: locationNameSnake,
-        latitude,
-        longitude,
-        requiresApproval,
-        requires_approval: requiresApprovalSnake,
-        timeSlots,
-        time_slots: timeSlotsSnake
-    } = req.body;
-
-    const locName = locationName || locationNameSnake;
-    const reqApproval = (requiresApproval !== undefined) ? requiresApproval : requiresApprovalSnake;
-    const tSlots = timeSlots || timeSlotsSnake;
+    const data = normalizeEventData(req.body);
     const pool = await poolPromise;
     const client = await pool.connect();
     try {
         const check = await pool.query('SELECT created_by FROM "Events" WHERE id = $1', [eventId]);
         if (check.rows.length === 0) return res.status(404).json({ message: 'Event not found' });
         if (check.rows[0].created_by != req.user.id) return res.status(403).json({ message: 'Unauthorized' });
+
         await client.query('BEGIN');
-        let imgSql = "", params = [title, description, locName, parseFloat(latitude) || null, parseFloat(longitude) || null, reqApproval === 'true' || reqApproval === true, eventId];
-        if (req.files && req.files.length > 0) {
-            const f = req.files.find(fi => fi.mimetype.startsWith('image/'));
-            if (f) { imgSql = `, image_url = $8`; params.push(process.env.USE_LOCAL_STORAGE === 'true' ? f.filename : f.path); }
-        }
-        await client.query(`UPDATE "Events" SET title=$1, description=$2, location_name=$3, latitude=$4, longitude=$5, requires_approval=$6 ${imgSql} WHERE id=$7`, params);
-        if (tSlots) { await client.query('DELETE FROM "EventTimeSlots" WHERE event_id = $1', [eventId]); await insertTimeSlots(client, eventId, tSlots); }
-        if (req.files && req.files.length > 0) { await client.query('DELETE FROM "EventMedia" WHERE event_id = $1', [eventId]); await insertEventMedia(client, eventId, req.files); }
+        await performUpdate(client, eventId, data, req.files);
         await client.query('COMMIT');
+
         res.json({ message: 'Updated' });
-    } catch (error) { await client.query('ROLLBACK'); console.error(error); res.status(500).json({ message: 'Error' }); }
-    finally { client.release(); }
+    } catch (error) {
+        if (client) await client.query('ROLLBACK');
+        console.error("DEBUG: Update Event Failed:", error);
+        res.status(500).json({ message: `Server error: ${error.message}` });
+    } finally {
+        if (client) client.release();
+    }
 };
 
 const registerForEvent = async (req, res) => {
