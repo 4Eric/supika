@@ -21,7 +21,8 @@ const filteredEvents = computed(() => {
 
 onMounted(async () => {
   try {
-    const res = await axios.get(`${API_URL}/api/events`)
+    // Increase limit for map to see more events, or eventually use a bounding box API
+    const res = await axios.get(`${API_URL}/api/events?limit=1000`)
     localEvents.value = res.data
   } catch (err) {
     console.error('Failed to load events:', err)
@@ -89,4 +90,3 @@ const goToEvent = (id) => {
   }
 }
 </style>
-

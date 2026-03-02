@@ -49,7 +49,10 @@ onMounted(() => {
     attribution: '© OpenStreetMap contributors'
   }).addTo(mapInstance)
 
-  markersGroup = leaflet.markerClusterGroup().addTo(mapInstance)
+  markersGroup = leaflet.markerClusterGroup({
+    chunkedLoading: true,
+    removeOutsideVisibleBounds: true
+  }).addTo(mapInstance)
 
   if (props.pickerMode) {
     mapInstance.on('click', function(e) {
@@ -76,22 +79,31 @@ watch(() => props.events, () => {
 }, { deep: true })
 
 const updateMarkers = () => {
-  if (!markersGroup) return
+  if (!markersGroup || !mapInstance) return
   markersGroup.clearLayers()
   
-  if (props.events.length > 0) {
+  if (props.events?.length > 0) {
     const bounds = leaflet.latLngBounds()
-    
-    props.events.forEach(event => {
+    let hasValidPoints = false
+
+    const newMarkers = props.events.map(event => {
+      if (!event.latitude || !event.longitude) return null
+      
       const marker = leaflet.marker([event.latitude, event.longitude])
-        .bindTooltip(event.title)
+        .bindTooltip(event.title || 'Event')
         .on('click', () => emit('markerClick', event.id))
       
-      markersGroup.addLayer(marker)
       bounds.extend([event.latitude, event.longitude])
-    })
+      hasValidPoints = true
+      return marker
+    }).filter(m => m !== null)
     
-    mapInstance.fitBounds(bounds, { padding: [50, 50] })
+    // Using addLayers (plural) is significantly faster for large batches
+    markersGroup.addLayers(newMarkers)
+    
+    if (hasValidPoints) {
+      mapInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 })
+    }
   }
 }
 </script>
@@ -107,4 +119,3 @@ const updateMarkers = () => {
   z-index: 1;
 }
 </style>
-
