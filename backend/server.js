@@ -6,18 +6,16 @@ require('dotenv').config();
 
 const app = express();
 
-// Trust the proxy (Render load balancer) for express-rate-limit
-// Trust the proxy (Render load balancer) for express-rate-limit
-// Set to true to trust all intermediate proxies (standard for cloud environments)
+// Trust the proxy (Render load balancer) first
 app.set('trust proxy', true);
 
 // Security Headers
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 
 // CORS - restrict to frontend origin(s)
-const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').filter(o => o.trim());
+const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(o => o.trim()).filter(o => o);
 const defaultWhitelist = [
-    'http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174', 'http://192.168.2.37:5173', 'http://192.168.2.37:5174', 'https://supika.onrender.com', 'https://supika-vibe.onrender.com', 'https://supika.vercel.app'
+    'http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174', 'https://supika.onrender.com', 'https://supika-vibe.onrender.com', 'https://supika.vercel.app'
 ];
 const fullWhitelist = [...allowedOrigins, ...defaultWhitelist];
 
@@ -34,7 +32,7 @@ app.use(cors({
         if (isAllowed) {
             callback(null, true);
         } else {
-            console.warn(`🚨 CORS BLOCKED for origin: [${origin}]`);
+            console.warn(`🚨 CORS BLOCKED: [${origin}] is not in whitelist.`);
             callback(new Error('Not allowed by CORS'));
         }
     },
