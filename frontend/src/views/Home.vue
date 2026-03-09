@@ -259,6 +259,8 @@ const goToEvent = (id) => {
             class="card-image"
             loading="lazy"
           />
+          <!-- AI-discovered badge -->
+          <span v-if="event.creatorName === 'eFinder.ai'" class="ai-badge">🤖 AI</span>
           <!-- For You badge -->
           <span v-if="event._recScore > 0" class="for-you-badge">✨ For You</span>
           <!-- Auto-Accept badge -->
@@ -279,7 +281,7 @@ const goToEvent = (id) => {
             </span>
             <span class="meta-item">📅 {{ new Date(event.date).toLocaleDateString() }}</span>
           </div>
-          <div class="card-author">
+          <div class="card-author" @click.stop="router.push(`/host/${event.createdBy}`)">
             <div class="author-avatar">{{ (event.creatorName || 'U').charAt(0).toUpperCase() }}</div>
             <span class="author-name">{{ event.creatorName || 'Organizer' }}</span>
           </div>
@@ -442,6 +444,19 @@ const goToEvent = (id) => {
   top: 8px;
   right: 8px;
   background: rgba(52, 211, 153, 0.85);
+  backdrop-filter: blur(8px);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+}
+.ai-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.9), rgba(56, 189, 248, 0.9));
   backdrop-filter: blur(8px);
   color: white;
   font-size: 0.65rem;

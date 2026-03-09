@@ -87,6 +87,17 @@ const router = createRouter({
             path: '/reset-password',
             name: 'reset-password',
             component: () => import('@/views/ResetPassword.vue')
+        },
+        {
+            path: '/host/:id',
+            name: 'host-profile',
+            component: () => import('@/views/HostProfile.vue')
+        },
+        {
+            path: '/admin/ai',
+            name: 'admin-ai',
+            component: () => import('@/views/AdminAiDiscovery.vue'),
+            meta: { requiresAuth: true, requiresAdmin: true }
         }
     ]
 })

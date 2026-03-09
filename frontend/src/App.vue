@@ -79,8 +79,10 @@ const pageTitle = computed(() => {
   if (route.path === '/create') return 'Create Event'
   if (route.path === '/profile') return 'Account Settings'
   if (route.path === '/admin/users') return 'Admin User Management'
+  if (route.path === '/admin/ai') return 'eFinder.ai'
   if (route.path.startsWith('/event/') && route.path.endsWith('/edit')) return 'Edit Event'
   if (route.path.startsWith('/event/')) return 'Event Details'
+  if (route.path.startsWith('/host/')) return 'Host Profile'
   return 'Dashboard'
 })
 </script>
@@ -131,6 +133,9 @@ const pageTitle = computed(() => {
           <router-link v-if="authStore.user?.role === 'admin'" to="/admin/users" class="nav-item">
             <span class="icon">🛡️</span> Admin Panel
           </router-link>
+          <router-link v-if="authStore.user?.role === 'admin'" to="/admin/ai" class="nav-item">
+            <span class="icon">🤖</span> eFinder.ai
+          </router-link>
         </template>
       </nav>
 
@@ -163,7 +168,7 @@ const pageTitle = computed(() => {
         </div>
       </header>
 
-      <main class="main-content">
+      <main class="main-content" :class="{ 'no-padding': route.path === '/map' }">
         <router-view />
       </main>
     </div>
@@ -423,6 +428,11 @@ const pageTitle = computed(() => {
   padding: 2rem 3rem;
 }
 
+.main-content.no-padding {
+  padding: 0;
+  overflow: hidden;
+}
+
 .main-content::-webkit-scrollbar {
   width: 8px;
 }
@@ -586,6 +596,9 @@ const pageTitle = computed(() => {
   
   .main-content {
     padding: 1rem 0.75rem;
+  }
+  .main-content.no-padding {
+    padding: 0;
   }
 }
 

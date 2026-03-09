@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 
@@ -12,6 +12,16 @@ const password = ref('')
 const username = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
+const sessionExpired = ref(false)
+
+onMounted(() => {
+  if (sessionStorage.getItem('session_expired')) {
+    sessionExpired.value = true
+    sessionStorage.removeItem('session_expired')
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => { sessionExpired.value = false }, 5000)
+  }
+})
 
 const toggleMode = () => {
   isLoginMode.value = !isLoginMode.value
@@ -51,6 +61,14 @@ const handleSubmit = async () => {
 
 <template>
   <div class="auth-page">
+    <!-- Session Expired Toast -->
+    <Transition name="toast">
+      <div v-if="sessionExpired" class="session-toast" @click="sessionExpired = false">
+        <span class="toast-icon">🔒</span>
+        <span>Your session has expired. Please sign in again.</span>
+      </div>
+    </Transition>
+
     <div class="auth-card">
       <div class="auth-header">
         <h1 class="auth-logo">Supika</h1>
@@ -357,4 +375,37 @@ const handleSubmit = async () => {
     display: inline-block;
   }
 }
+
+/* Session Expired Toast */
+.session-toast {
+  position: fixed;
+  top: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #fca5a5;
+  padding: 0.75rem 1.5rem;
+  border-radius: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  white-space: nowrap;
+}
+
+.toast-icon {
+  font-size: 1rem;
+}
+
+.toast-enter-active { transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
+.toast-leave-active { transition: all 0.3s ease-in; }
+.toast-enter-from { opacity: 0; transform: translateX(-50%) translateY(-20px); }
+.toast-leave-to { opacity: 0; transform: translateX(-50%) translateY(-20px); }
 </style>

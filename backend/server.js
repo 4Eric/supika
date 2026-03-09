@@ -27,7 +27,8 @@ app.use(cors({
         const isAllowed = fullWhitelist.includes(origin) ||
             fullWhitelist.includes(origin + '/') || // match trailing slash
             origin.endsWith('.onrender.com') ||
-            origin.endsWith('.vercel.app');
+            origin.endsWith('.vercel.app') ||
+            /^https?:\/\/192\.168\.\d+\.\d+:\d+$/.test(origin); // local network
 
         if (isAllowed) {
             callback(null, true);
@@ -50,6 +51,8 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/events', require('./routes/events'));
 app.use('/api/messages', require('./routes/messages'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/ai', require('./routes/ai'));
 
 const PORT = process.env.PORT || 5000;
 

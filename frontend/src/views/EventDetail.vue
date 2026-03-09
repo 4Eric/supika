@@ -190,11 +190,15 @@ const updateAttendeeStatus = async (userId, status) => {
           <div class="body-header">
             <h1 class="event-title">{{ event.title }}</h1>
             <div class="meta-badges">
-              <span class="badge creator-badge">
+              <router-link :to="`/host/${event.createdBy}`" class="badge creator-badge clickable">
                 <span class="badge-icon">👤</span> By {{ event.creatorName || 'unknown' }}
-              </span>
+              </router-link>
               <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" class="badge location-badge">
                 <span class="badge-icon">📍</span> {{ event.locationName }}
+              </a>
+              <span v-if="event.creatorName === 'eFinder.ai'" class="badge ai-source-badge">🤖 AI Discovered</span>
+              <a v-if="event.sourceUrl" :href="event.sourceUrl" target="_blank" class="badge source-badge">
+                <span class="badge-icon">🔗</span> View Original Source
               </a>
             </div>
           </div>
@@ -431,26 +435,31 @@ const updateAttendeeStatus = async (userId, status) => {
   margin-bottom: 1rem;
   background: linear-gradient(135deg, #fff, var(--primary-color));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 .meta-badges { display: flex; flex-wrap: wrap; gap: 0.8rem; }
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 14px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 30px;
-  font-size: 0.9rem;
+.badge.clickable {
+  cursor: pointer;
+  transition: all 0.2s;
   color: var(--text-main);
-  text-decoration: none;
+}
+.badge.clickable:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: var(--primary-color);
+  transform: translateY(-1px);
 }
 .badge.pending { color: #facc15; }
 .badge.approved { color: #34d399; }
 .badge.rejected { color: #ef4444; }
+.badge-icon { margin-right: 4px; }
 
 .location-badge { color: var(--primary-color); transition: all 0.2s; }
 .location-badge:hover { background: rgba(56, 189, 248, 0.1); border-color: var(--primary-color); transform: translateY(-1px); }
+
+.ai-source-badge { background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(56, 189, 248, 0.2)); border-color: rgba(168, 85, 247, 0.4); color: #c4b5fd; }
+.source-badge { color: #34d399; transition: all 0.2s; }
+.source-badge:hover { background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.4); transform: translateY(-1px); }
 
 /* Sections */
 .section { margin-bottom: 2.5rem; animation: fadeInUp 0.5s ease backwards; }
