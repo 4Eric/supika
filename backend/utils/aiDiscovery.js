@@ -166,11 +166,13 @@ Rules:
 - For imageUrl, use the direct image file URL from the event page (e.g. .jpg, .png, .webp)
 - Return ONLY the JSON, nothing else`;
 
-    // Model fallback chain — try each model, handle rate limits with retry
+    // Model fallback chain — try with search tool, then without
     const models = [
         { name: 'gemini-2.5-flash', tools: [{ googleSearch: {} }] },
+        { name: 'gemini-2.5-flash', tools: undefined },
         { name: 'gemini-2.0-flash', tools: [{ googleSearch: {} }] },
-        { name: 'gemini-1.5-flash', tools: [{ googleSearch: {} }] }
+        { name: 'gemini-2.0-flash', tools: undefined },
+        { name: 'gemini-1.5-flash', tools: undefined }
     ];
 
     let responseText = null;
@@ -182,15 +184,16 @@ Rules:
             if (modelConfig.tools) modelOpts.tools = modelConfig.tools;
             const model = genAI.getGenerativeModel(modelOpts);
 
-            console.log(`[eFinder] Trying model: ${modelConfig.name}`);
+            const toolLabel = modelConfig.tools ? '+search' : 'no-tools';
+            console.log(`[eFinder] Trying model: ${modelConfig.name} (${toolLabel})`);
             const result = await model.generateContent(prompt);
             responseText = result.response.text();
-            console.log(`[eFinder] Success with model: ${modelConfig.name}`);
+            console.log(`[eFinder] Success with model: ${modelConfig.name} (${toolLabel})`);
             break;
         } catch (err) {
             lastError = err;
-            const errMsg = err.message || '';
-            console.warn(`[eFinder] Model ${modelConfig.name} failed: ${errMsg.substring(0, 120)}`);
+            const errMsg = err?.message || err?.toString?.() || JSON.stringify(err);
+            console.warn(`[eFinder] Model ${modelConfig.name} failed: ${errMsg.substring(0, 200)}`);
 
             // If rate limited, extract retry delay and try waiting once
             if (errMsg.includes('429') || errMsg.includes('quota')) {
@@ -202,13 +205,13 @@ Rules:
                     await new Promise(r => setTimeout(r, waitSecs * 1000));
                 }
             }
-            // Try next model in the chain
             continue;
         }
     }
 
     if (!responseText) {
-        throw new Error(`All Gemini models exhausted. Last error: ${lastError?.message?.substring(0, 200) || 'Unknown'}. Your API key may have hit its daily free-tier limit. Try again later or upgrade your plan.`);
+        const errDetail = lastError?.message || lastError?.toString?.() || 'No error details captured';
+        throw new Error(`All Gemini models exhausted. Last error: ${errDetail.substring(0, 300)}. Try again later or upgrade your plan.`);
     }
 
     // Parse the JSON from the response
