@@ -5,12 +5,33 @@ const path = require('path');
 require('dotenv').config();
 
 const app = express();
+const logger = require('./utils/logger');
+const requestLogger = require('./middlewares/requestLogger');
+const errorHandler = require('./middlewares/errorHandler');
+const { globalLimiter } = require('./middlewares/rateLimiter');
+
+// Process level exception handlers
+process.on('uncaughtException', (err) => {
+    logger.fatal(err, 'Uncaught Exception!');
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (err) => {
+    logger.fatal(err, 'Unhandled Rejection!');
+    process.exit(1);
+});
 
 // Trust the proxy (Render load balancer) first
 app.set('trust proxy', true);
 
 // Security Headers
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+
+// Global Rate Limiter
+app.use(globalLimiter);
+
+// Request Logger
+app.use(requestLogger);
 
 // CORS - restrict to frontend origin(s)
 const allowedOrigins = (process.env.CORS_ORIGIN || '').split(',').map(o => o.trim()).filter(o => o);
@@ -33,7 +54,7 @@ app.use(cors({
         if (isAllowed) {
             callback(null, true);
         } else {
-            console.warn(`🚨 CORS BLOCKED: [${origin}] is not in whitelist.`);
+            logger.warn({ origin }, '🚨 CORS BLOCKED');
             callback(new Error('Not allowed by CORS'));
         }
     },
@@ -54,6 +75,9 @@ app.use('/api/messages', require('./routes/messages'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/ai', require('./routes/ai'));
 
+// Global Error Handler (must be after all routes)
+app.use(errorHandler);
+
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => logger.info(`Server started on port ${PORT}`));

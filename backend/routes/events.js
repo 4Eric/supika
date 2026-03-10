@@ -39,6 +39,8 @@ const upload = multer({
 });
 
 const auth = require('../utils/auth');
+const { eventsWriteLimiter } = require('../middlewares/rateLimiter');
+const { eventValidation } = require('../middlewares/validator');
 
 const eventController = require('../controllers/eventController');
 
@@ -55,10 +57,10 @@ router.get('/hosted/me', auth, eventController.getHostedEvents);
 router.get('/:id', eventController.getEventById);
 
 // Create event
-router.post('/', [auth, upload.array('media', 10)], eventController.createEvent);
+router.post('/', [auth, eventsWriteLimiter, upload.array('media', 10), eventValidation], eventController.createEvent);
 
 // Update an existing event (Creator Only)
-router.put('/:id', [auth, upload.array('media', 10)], eventController.updateEvent);
+router.put('/:id', [auth, eventsWriteLimiter, upload.array('media', 10), eventValidation], eventController.updateEvent);
 
 // Register for event
 router.post('/:id/register', auth, eventController.registerForEvent);

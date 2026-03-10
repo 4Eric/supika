@@ -3,6 +3,7 @@ const router = express.Router();
 const { poolPromise } = require('../config/db');
 
 const auth = require('../utils/auth');
+const { messageValidation } = require('../middlewares/validator');
 
 // Get global unread messages count
 router.get('/unread/count', auth, async (req, res) => {
@@ -99,7 +100,7 @@ router.get('/:otherUserId', auth, async (req, res) => {
 });
 
 // Send a new message
-router.post('/', auth, async (req, res) => {
+router.post('/', [auth, messageValidation], async (req, res) => {
     try {
         const { receiver_id, event_id, content } = req.body;
         const sender_id = req.user.id;
@@ -192,7 +193,7 @@ router.get('/group/:eventId/:timeSlotId', [auth, isAttendeeOrCreator], async (re
 });
 
 // Send a group message
-router.post('/group/:eventId/:timeSlotId', [auth, isAttendeeOrCreator], async (req, res) => {
+router.post('/group/:eventId/:timeSlotId', [auth, isAttendeeOrCreator, messageValidation], async (req, res) => {
     try {
         const { eventId, timeSlotId } = req.params;
         const { content } = req.body;

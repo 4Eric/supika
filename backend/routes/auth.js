@@ -7,22 +7,8 @@ const rateLimit = require('express-rate-limit');
 const { poolPromise } = require('../config/db');
 const { sendPasswordResetEmail } = require('../utils/mailer');
 
-// Rate limiters for auth endpoints
-const loginLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 20, // 20 attempts per window
-    message: { message: 'Too many login attempts, please try again after 15 minutes' },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
-
-const registerLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10, // 10 registrations per window
-    message: { message: 'Too many accounts created, please try again after 15 minutes' },
-    standardHeaders: true,
-    legacyHeaders: false,
-});
+const { loginLimiter, registerLimiter } = require('../middlewares/rateLimiter');
+const { registerValidation, loginValidation } = require('../middlewares/validator');
 
 // Middleware to protect routes
 const auth = require('../utils/auth');
@@ -37,10 +23,10 @@ const adminOnly = (req, res, next) => {
 const authController = require('../controllers/authController');
 
 // Register
-router.post('/register', registerLimiter, authController.register);
+router.post('/register', registerLimiter, registerValidation, authController.register);
 
 // Login
-router.post('/login', loginLimiter, authController.login);
+router.post('/login', loginLimiter, loginValidation, authController.login);
 
 // Get Current User Profile
 router.get('/me', auth, authController.getCurrentUser);
