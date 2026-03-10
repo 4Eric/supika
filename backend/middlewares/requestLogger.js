@@ -1,8 +1,8 @@
-const { v4: uuidv4 } = require('uuid');
+const crypto = require('crypto');
 const logger = require('../utils/logger');
 
 const requestLogger = (req, res, next) => {
-    req.id = uuidv4();
+    req.id = crypto.randomUUID();
     const startTime = Date.now();
 
     // Log when request completes

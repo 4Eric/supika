@@ -2,6 +2,9 @@ const rateLimit = require('express-rate-limit');
 const { error } = require('../utils/response');
 
 const createLimiter = (options) => {
+    if (process.env.NODE_ENV === 'test') {
+        return (req, res, next) => next();
+    }
     return rateLimit({
         windowMs: options.windowMs || 15 * 60 * 1000,
         max: options.max,

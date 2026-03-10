@@ -1,8 +1,8 @@
 const pino = require('pino');
 
-const isDev = process.env.NODE_ENV !== 'production';
+const isDev = process.env.NODE_ENV !== 'production' && process.env.NODE_ENV !== 'test';
 
-// In production, log json. In dev, use pino-pretty for readable logs
+// In production or test, log json (or disable). In dev, use pino-pretty for readable logs
 const transport = isDev
     ? {
         target: 'pino-pretty',
@@ -15,7 +15,7 @@ const transport = isDev
     : undefined;
 
 const logger = pino({
-    level: process.env.LOG_LEVEL || 'info',
+    level: process.env.NODE_ENV === 'test' ? 'silent' : (process.env.LOG_LEVEL || 'info'),
     timestamp: pino.stdTimeFunctions.isoTime,
     transport
 });

@@ -80,4 +80,8 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, '0.0.0.0', () => logger.info(`Server started on port ${PORT}`));
+if (process.env.NODE_ENV !== 'test') {
+    app.listen(PORT, '0.0.0.0', () => logger.info(`Server started on port ${PORT}`));
+}
+
+module.exports = app;
