@@ -138,7 +138,7 @@ const sendMessage = async () => {
 }
 
 const goBack = () => {
-  router.push(`/messages`)
+  router.push(`/my-messages`)
 }
 
 // Relative time formatting for messages inside the chat
