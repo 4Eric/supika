@@ -7,11 +7,15 @@ const getPublicProfile = async (req, res) => {
         const pool = await poolPromise;
         const userId = req.params.id;
 
+        const currentUserId = req.user ? req.user.id : null;
+
         // Fetch user basic info
         const userResult = await pool.query(`
             SELECT id, username, created_at,
             (SELECT COUNT(*) FROM "Events" WHERE created_by = $1) as events_hosted_count,
-            (SELECT COUNT(*) FROM "Registrations" r JOIN "Events" e ON r.event_id = e.id WHERE e.created_by = $1 AND (r.status = 'approved' OR r.status IS NULL)) as total_attendees_count
+            (SELECT COUNT(*) FROM "Registrations" r JOIN "Events" e ON r.event_id = e.id WHERE e.created_by = $1 AND (r.status = 'approved' OR r.status IS NULL)) as total_attendees_count,
+            (SELECT COUNT(*) FROM "UserFollowers" WHERE following_id = $1) as followers_count,
+            (SELECT COUNT(*) FROM "UserFollowers" WHERE follower_id = $1) as following_count
             FROM "Users"
             WHERE id = $1
         `, [userId]);
@@ -20,7 +24,22 @@ const getPublicProfile = async (req, res) => {
             return res.status(404).json({ message: 'User not found' });
         }
 
-        res.json(mapToCamelCase(userResult.rows[0]));
+        let isFollowing = false;
+        if (req.header('x-auth-token')) {
+            // Need a fast way to check verify without full middleware, we'll try catching the header
+            try {
+                const jwt = require('jsonwebtoken');
+                const decoded = jwt.verify(req.header('x-auth-token'), process.env.JWT_SECRET);
+                const selfId = decoded.user.id;
+                const followCheck = await pool.query('SELECT 1 FROM "UserFollowers" WHERE follower_id = $1 AND following_id = $2', [selfId, userId]);
+                isFollowing = followCheck.rowCount > 0;
+            } catch (e) { }
+        }
+
+        const data = mapToCamelCase(userResult.rows[0]);
+        data.isFollowing = isFollowing;
+
+        res.json(data);
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: 'Server error' });
@@ -54,7 +73,61 @@ const getUserEvents = async (req, res) => {
     }
 };
 
+const followUser = async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const followerId = req.user.id;
+        const followingId = req.params.id;
+
+        if (followerId == followingId) return res.status(400).json({ message: 'Cannot follow yourself' });
+
+        await pool.query('INSERT INTO "UserFollowers" (follower_id, following_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [followerId, followingId]);
+        res.json({ success: true, message: 'Followed' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const unfollowUser = async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const followerId = req.user.id;
+        const followingId = req.params.id;
+
+        await pool.query('DELETE FROM "UserFollowers" WHERE follower_id = $1 AND following_id = $2', [followerId, followingId]);
+        res.json({ success: true, message: 'Unfollowed' });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const getFollowers = async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const userId = req.params.id;
+        const type = req.query.type === 'following' ? 'following_id' : 'follower_id';
+        const joinField = type === 'following_id' ? 'follower_id' : 'following_id';
+
+        // if type is following, we want to see who this userId follows 
+        const result = await pool.query(`
+            SELECT u.id, u.username FROM "UserFollowers" uf
+            JOIN "Users" u ON uf.${joinField} = u.id
+            WHERE uf.${type} = $1
+        `, [userId]);
+
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
 module.exports = {
     getPublicProfile,
-    getUserEvents
+    getUserEvents,
+    followUser,
+    unfollowUser,
+    getFollowers
 };

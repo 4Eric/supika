@@ -12,8 +12,8 @@ const errorHandler = (err, req, res, next) => {
     }, 'Unhandled error caught by global handler');
 
     // Handle specific documented errors
-    if (err.type === 'entity.parse.failed') { // JSON parse error from express.json()
-        return error(res, 'Invalid JSON payload format', 400, 'INVALID_JSON');
+    if (err.type === 'entity.parse.failed' || err instanceof SyntaxError) { // JSON parse error from express.json()
+        return error(res, 'Invalid JSON payload', 400, 'BAD_JSON');
     }
 
     if (err.message && err.message.includes('Not allowed by CORS')) {

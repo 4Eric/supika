@@ -6,6 +6,8 @@ import { useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { getImageUrl } from '@/utils/imageUrl'
+import { useAsync } from '@/composables/useAsync'
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 
 const uiStore = useUiStore()
 const authStore = useAuthStore()
@@ -13,7 +15,49 @@ const router = useRouter()
 
 const allEvents = ref([])
 const myEvents = ref([])
+const recommendedEvents = ref([])
 const activeFilter = ref('All')
+
+const { loading: loadingEvents, error: errorEvents, execute: executeFetchEvents } = useAsync(async (append = false) => {
+  const timeFilter = activeFilter.value === 'Past' ? 'past' : 'upcoming'
+  const res = await axios.get(`${API_URL}/api/events?limit=${limit}&offset=${offset.value}&time_filter=${timeFilter}`)
+  const newEvents = res.data
+  
+  if (newEvents.length < limit) {
+    hasMore.value = false
+  }
+
+  if (append) {
+    allEvents.value = [...allEvents.value, ...newEvents]
+  } else {
+    allEvents.value = newEvents
+  }
+  
+  if (timeFilter === 'past') {
+    allEvents.value.sort((a, b) => new Date(b.date) - new Date(a.date))
+  } else {
+    allEvents.value.sort((a, b) => new Date(a.date) - new Date(b.date))
+  }
+  return allEvents.value
+})
+
+const { loading: loadingRecommendations, execute: executeFetchRecommendations } = useAsync(async () => {
+  if (!authStore.isAuthenticated) return []
+  const res = await axios.get(`${API_URL}/api/ai/recommendations`, {
+    headers: { 'x-auth-token': authStore.token }
+  })
+  recommendedEvents.value = res.data
+  return res.data
+})
+
+const { loading: loadingMyEvents, execute: executeFetchMyEvents } = useAsync(async () => {
+  if (!authStore.isAuthenticated || !authStore.token) return []
+  const myRes = await axios.get(`${API_URL}/api/events/registered/me`, {
+    headers: { 'x-auth-token': authStore.token }
+  })
+  myEvents.value = myRes.data
+  return myRes.data
+})
 const filters = [
   { label: 'All', icon: '🌍' },
   { label: 'Today', icon: '⏱️' },
@@ -32,32 +76,7 @@ const loadingMore = ref(false)
 const observerTarget = ref(null)
 let observer = null
 
-const fetchEvents = async (append = false) => {
-  try {
-    const timeFilter = activeFilter.value === 'Past' ? 'past' : 'upcoming'
-    const res = await axios.get(`${API_URL}/api/events?limit=${limit}&offset=${offset.value}&time_filter=${timeFilter}`)
-    const newEvents = res.data
-    
-    if (newEvents.length < limit) {
-      hasMore.value = false
-    }
-
-    if (append) {
-      allEvents.value = [...allEvents.value, ...newEvents]
-    } else {
-      allEvents.value = newEvents
-    }
-    
-    // Sort logic: ascending for upcoming, descending for past
-    if (timeFilter === 'past') {
-      allEvents.value.sort((a, b) => new Date(b.date) - new Date(a.date))
-    } else {
-      allEvents.value.sort((a, b) => new Date(a.date) - new Date(b.date))
-    }
-  } catch (err) {
-    console.error('Failed to load events:', err)
-  }
-}
+const fetchEvents = (append = false) => executeFetchEvents(append)
 
 // Re-fetch when filter category changes significantly (Upcoming vs Past)
 import { watch } from 'vue'
@@ -82,15 +101,9 @@ const loadMore = async () => {
 onMounted(async () => {
   await fetchEvents()
   
-  try {
-    if (authStore.isAuthenticated && authStore.token) {
-      const myRes = await axios.get(`${API_URL}/api/events/registered/me`, {
-        headers: { 'x-auth-token': authStore.token }
-      })
-      myEvents.value = myRes.data
-    }
-  } catch (err) {
-    console.error('Failed to load registered events:', err)
+  if (authStore.isAuthenticated && authStore.token) {
+    await executeFetchMyEvents()
+    await executeFetchRecommendations()
   }
 
   // Setup Intersection Observer for infinite scrolling
@@ -104,6 +117,8 @@ onMounted(async () => {
     observer.observe(observerTarget.value)
   }
 })
+
+const fetchRecommendations = () => executeFetchRecommendations()
 
 onUnmounted(() => {
   if (observer && observerTarget.value) {
@@ -237,20 +252,50 @@ const goToEvent = (id) => {
       <div class="scroll-fade"></div>
     </div>
 
-    <div v-if="feedEvents.length === 0" class="no-results">
+    <div v-if="activeFilter === 'All' && recommendedEvents.length > 0 && !uiStore.searchQuery" class="recommendations-section">
+      <h3 class="section-title">✨ Matched For You</h3>
+      <div class="horizontal-scroll">
+        <div v-for="event in recommendedEvents" :key="'rec-'+event.id" class="rec-card" @click="goToEvent(event.id)">
+          <div class="rec-img-wrapper">
+            <img :src="getImageUrl(event.imageUrl)" class="rec-img" />
+            <div class="vibe-match-badge">{{ event.matchScore || 95 }}% Match</div>
+          </div>
+          <div class="rec-info">
+            <h4>{{ event.title }}</h4>
+            <p>{{ formatLocation(event.locationName) }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="loadingEvents && allEvents.length === 0" class="no-results">
+       <h3>Loading events... ⏳</h3>
+    </div>
+    <div v-else-if="errorEvents" class="no-results">
+      <h3>Connection Error 📡</h3>
+      <p>{{ errorEvents.message }}</p>
+      <div v-if="errorEvents.config" style="font-size: 10px; color: #666; word-break: break-all;">
+        Target: {{ errorEvents.config.url }}
+      </div>
+      <button @click="fetchEvents()" class="btn-sm" style="margin-top: 1rem;">Retry</button>
+    </div>
+    <div v-else-if="feedEvents.length === 0" class="no-results">
       <h3>No events found 🕵️</h3>
       <p>Try adjusting your search or date filters.</p>
+      <button @click="fetchEvents()" class="btn-sm" style="margin-top: 1rem;">Refresh Feed</button>
     </div>
 
     <!-- Masonry Waterfall Grid -->
-    <div class="masonry-grid" v-else>
-      <div
-        class="masonry-card"
-        :class="{ 'is-past': activeFilter === 'Past' }"
-        v-for="event in feedEvents"
-        :key="event.id"
-        @click="goToEvent(event.id)"
-      >
+    <LoadingSkeleton v-if="loadingEvents && allEvents.length === 0" :count="8" />
+    <div class="masonry-grid" v-else-if="feedEvents.length > 0">
+      <TransitionGroup name="list">
+        <div
+          class="masonry-card"
+          :class="{ 'is-past': activeFilter === 'Past' }"
+          v-for="event in feedEvents"
+          :key="event.id"
+          @click="goToEvent(event.id)"
+        >
         <!-- Image -->
         <div class="card-image-wrapper">
           <img
@@ -287,7 +332,8 @@ const goToEvent = (id) => {
           </div>
         </div>
       </div>
-    </div>
+    </TransitionGroup>
+  </div>
 
     <!-- Infinite Scroll Observer Target -->
     <div ref="observerTarget" class="load-more-container">
@@ -298,6 +344,20 @@ const goToEvent = (id) => {
 </template>
 
 <style scoped>
+/* List Transitions */
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.5s ease;
+}
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: translateY(30px);
+}
+.list-move {
+  transition: transform 0.5s ease;
+}
+
 .discover-container {
   display: flex;
   flex-direction: column;
@@ -336,9 +396,9 @@ const goToEvent = (id) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--input-bg);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-light);
   color: var(--text-muted);
   padding: 0.55rem 1.2rem;
   border-radius: 30px;
@@ -352,9 +412,9 @@ const goToEvent = (id) => {
   -webkit-tap-highlight-color: transparent;
 }
 .filter-pill:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--border-light);
   color: var(--text-main);
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--primary-color);
   transform: translateY(-1px);
 }
 .filter-pill:active {
@@ -392,11 +452,11 @@ const goToEvent = (id) => {
   background: var(--card-bg);
   cursor: pointer;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--card-shadow);
 }
 .masonry-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 8px 28px rgba(56, 189, 248, 0.15), 0 4px 16px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--card-hover-shadow);
 }
 .masonry-card.is-past {
   filter: grayscale(0.8);
@@ -432,7 +492,7 @@ const goToEvent = (id) => {
   left: 8px;
   background: rgba(56, 189, 248, 0.85);
   backdrop-filter: blur(8px);
-  color: white;
+  color: var(--btn-text-on-primary);
   font-size: 0.65rem;
   font-weight: 700;
   padding: 3px 8px;
@@ -445,7 +505,7 @@ const goToEvent = (id) => {
   right: 8px;
   background: rgba(52, 211, 153, 0.85);
   backdrop-filter: blur(8px);
-  color: white;
+  color: var(--btn-text-on-primary);
   font-size: 0.65rem;
   font-weight: 700;
   padding: 3px 8px;
@@ -458,7 +518,7 @@ const goToEvent = (id) => {
   left: 8px;
   background: linear-gradient(135deg, rgba(168, 85, 247, 0.9), rgba(56, 189, 248, 0.9));
   backdrop-filter: blur(8px);
-  color: white;
+  color: var(--btn-text-on-primary);
   font-size: 0.65rem;
   font-weight: 700;
   padding: 3px 8px;
@@ -522,7 +582,7 @@ const goToEvent = (id) => {
   justify-content: center;
   font-size: 0.6rem;
   font-weight: 700;
-  color: black;
+  color: var(--btn-text-on-primary);
   flex-shrink: 0;
 }
 .author-name {
@@ -568,7 +628,7 @@ const goToEvent = (id) => {
 }
 .load-more-btn:hover:not(:disabled) {
   background: var(--primary-color);
-  color: white;
+  color: var(--btn-text-on-primary);
   border-color: var(--primary-color);
   transform: translateY(-2px);
   box-shadow: 0 4px 15px rgba(56, 189, 248, 0.3);
@@ -577,6 +637,20 @@ const goToEvent = (id) => {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* --- Recommendations --- */
+.recommendations-section { margin-bottom: 2rem; overflow: hidden; }
+.section-title { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 1rem; padding-left: 0.25rem; }
+.horizontal-scroll { display: flex; gap: 1rem; overflow-x: auto; padding: 0.5rem 0.25rem 1rem; scrollbar-width: none; }
+.horizontal-scroll::-webkit-scrollbar { display: none; }
+.rec-card { flex: 0 0 220px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-light); border-radius: 16px; overflow: hidden; cursor: pointer; transition: transform 0.2s; }
+.rec-card:hover { transform: translateY(-4px); border-color: var(--primary-color); }
+.rec-img-wrapper { position: relative; height: 120px; }
+.rec-img { width: 100%; height: 100%; object-fit: cover; }
+.vibe-match-badge { position: absolute; bottom: 8px; right: 8px; background: rgba(56, 189, 248, 0.9); color: var(--btn-text-on-primary); font-size: 0.6rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; }
+.rec-info { padding: 10px; }
+.rec-info h4 { font-size: 0.9rem; margin: 0 0 4px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rec-info p { font-size: 0.75rem; color: var(--text-muted); }
 
 /* ---- Responsive ---- */
 

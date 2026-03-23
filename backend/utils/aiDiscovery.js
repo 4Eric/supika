@@ -306,8 +306,43 @@ async function insertDiscoveredEvent(eventData) {
     };
 }
 
+// Recommend events based on user history
+async function recommendEvents(userHistory, upcomingEvents) {
+    if (!GEMINI_API_KEY) throw new Error('GEMINI_API_KEY not set');
+    if (!userHistory || userHistory.length === 0) return [];
+
+    const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const prompt = `Based on a user's past event interest, rank the following upcoming events for them.
+    
+    User's Interest History:
+    ${userHistory.map(h => `- ${h.title}: ${h.description}`).join('\n')}
+    
+    Upcoming Events to Rank:
+    ${upcomingEvents.map(e => `[ID: ${e.id}] ${e.title}: ${e.description}`).join('\n')}
+    
+    Return ONLY a JSON array of the top 5 Event IDs that match their "vibe" most closely, in order of recommendation.
+    Format: [id1, id2, id3, id4, id5]`;
+
+    try {
+        const result = await model.generateContent(prompt);
+        const text = result.response.text();
+        const jsonMatch = text.match(/\[[\d,\s]*\]/);
+        if (!jsonMatch) return [];
+        const recommendedIds = JSON.parse(jsonMatch[0]);
+
+        // Return upcoming events that match these IDs
+        return recommendedIds.map(id => upcomingEvents.find(e => e.id == id)).filter(Boolean);
+    } catch (err) {
+        console.error('[eFinder] Recommendation failed:', err);
+        return [];
+    }
+}
+
 module.exports = {
     discoverEvents,
     insertDiscoveredEvent,
+    recommendEvents,
     geocode
 };

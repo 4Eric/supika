@@ -98,6 +98,17 @@ const router = createRouter({
             name: 'admin-ai',
             component: () => import('@/views/AdminAiDiscovery.vue'),
             meta: { requiresAuth: true, requiresAdmin: true }
+        },
+        {
+            path: '/host-landing',
+            name: 'host-landing',
+            component: () => import('@/views/HostLanding.vue')
+        },
+        {
+            path: '/ticket-confirmation',
+            name: 'ticket-confirmation',
+            component: () => import('@/views/TicketConfirmation.vue'),
+            meta: { requiresAuth: true }
         }
     ]
 })

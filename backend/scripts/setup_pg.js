@@ -81,13 +81,16 @@ async function setupPostgres() {
             console.log('Creating Registrations table...');
             await client.query(`
                 CREATE TABLE "Registrations" (
-                    user_id INT NOT NULL REFERENCES "Users"(id) ON DELETE NO ACTION,
-                    event_id INT NOT NULL REFERENCES "Events"(id) ON DELETE NO ACTION,
+                    id SERIAL PRIMARY KEY,
+                    user_id INT NOT NULL REFERENCES "Users"(id) ON DELETE CASCADE,
+                    event_id INT NOT NULL REFERENCES "Events"(id) ON DELETE CASCADE,
                     registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     status VARCHAR(20) DEFAULT 'approved',
                     time_slot_id INT NOT NULL REFERENCES "EventTimeSlots"(id) ON DELETE CASCADE,
-                    PRIMARY KEY (user_id, time_slot_id)
+                    check_in_time TIMESTAMP DEFAULT NULL,
+                    ticket_token UUID DEFAULT gen_random_uuid()
                 );
+                CREATE UNIQUE INDEX idx_registrations_user_timeslot ON "Registrations" (user_id, time_slot_id);
             `);
 
             console.log('Creating Messages table...');

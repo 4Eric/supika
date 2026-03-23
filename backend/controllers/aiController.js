@@ -1,4 +1,4 @@
-const { discoverEvents, insertDiscoveredEvent } = require('../utils/aiDiscovery');
+const { discoverEvents, insertDiscoveredEvent, recommendEvents } = require('../utils/aiDiscovery');
 const { poolPromise } = require('../config/db');
 const { mapToCamelCase } = require('../utils/mapper');
 
@@ -74,4 +74,45 @@ const listDiscoveries = async (req, res) => {
     }
 };
 
-module.exports = { discover, approve, listDiscoveries };
+// GET /api/ai/recommendations — Personalize event feed based on user history
+const getRecommendations = async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const userId = req.user.id;
+
+        // 1. Get user's history (last 5 registrations)
+        const historyRes = await pool.query(`
+            SELECT e.title, e.description FROM "Registrations" r
+            JOIN "EventTimeSlots" ts ON r.time_slot_id = ts.id
+            JOIN "Events" e ON ts.event_id = e.id
+            WHERE r.user_id = $1
+            ORDER BY r.created_at DESC
+            LIMIT 5
+        `, [userId]);
+
+        // 2. Get top 20 upcoming events in the next month
+        const upcomingRes = await pool.query(`
+            SELECT e.id, e.title, e.description, e.image_url, e.latitude, e.longitude, e.location_name,
+            (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) AS date
+            FROM "Events" e
+            WHERE (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) >= NOW()
+            ORDER BY (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) ASC
+            LIMIT 20
+        `);
+
+        if (historyRes.rows.length === 0) {
+            // Default: Most recent 5
+            return res.json(mapToCamelCase(upcomingRes.rows.slice(0, 5)));
+        }
+
+        // 3. Match via AI
+        const recommendations = await recommendEvents(historyRes.rows, upcomingRes.rows);
+
+        res.json(mapToCamelCase(recommendations));
+    } catch (error) {
+        console.error('Recommendations error:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+module.exports = { discover, approve, listDiscoveries, getRecommendations };

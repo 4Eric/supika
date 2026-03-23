@@ -180,9 +180,9 @@ const formatLocation = (loc) => {
   color: #ef4444;
   text-align: center;
   padding: 2rem;
-  background: white;
+  background: var(--card-bg);
   border-radius: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  border: 1px solid var(--border-light);
 }
 .loading {
   text-align: center;
@@ -209,7 +209,7 @@ const formatLocation = (loc) => {
 
 .btn-danger {
   background-color: #ef4444;
-  color: white;
+  color: var(--btn-text-on-primary);
 }
 .btn-danger:hover {
   background-color: #dc2626;

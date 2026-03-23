@@ -16,4 +16,7 @@ router.post('/discover', auth, adminOnly, aiDiscoverLimiter, aiController.discov
 router.post('/approve', auth, adminOnly, aiController.approve);
 router.get('/discoveries', auth, adminOnly, aiController.listDiscoveries);
 
+// Vibe Match - AI Recommendations for any logged in user
+router.get('/recommendations', auth, aiController.getRecommendations);
+
 module.exports = router;

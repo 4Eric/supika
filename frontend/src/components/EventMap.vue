@@ -4,6 +4,7 @@ import leaflet from 'leaflet'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import 'leaflet.markercluster'
+import { useThemeStore } from '@/stores/themeStore'
 
 const props = defineProps({
   events: {
@@ -21,8 +22,10 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['markerClick', 'locationSelected', 'eventPreview'])
+const themeStore = useThemeStore()
 const mapContainer = ref(null)
 let mapInstance = null
+let tileLayer = null
 let markersGroup = null
 let pickerMarker = null
 let activeMarkerRef = null
@@ -77,9 +80,12 @@ const createActiveIcon = () => {
 }
 
 onMounted(() => {
-  const tileUrl = props.immersive
-    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+  const getTileUrl = () => {
+    if (!props.immersive) return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+    return themeStore.activeTheme === 'dark' 
+      ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+  }
   
   const tileAttribution = props.immersive
     ? '&copy; <a href="https://carto.com/">CARTO</a>'
@@ -92,10 +98,14 @@ onMounted(() => {
   // Add zoom control to bottom-right
   leaflet.control.zoom({ position: 'bottomright' }).addTo(mapInstance)
 
-  leaflet.tileLayer(tileUrl, {
+  tileLayer = leaflet.tileLayer(getTileUrl(), {
     attribution: tileAttribution,
     maxZoom: 19
   }).addTo(mapInstance)
+  
+  watch(() => themeStore.activeTheme, () => {
+    tileLayer.setUrl(getTileUrl())
+  })
 
   // Style the cluster markers for dark mode
   markersGroup = leaflet.markerClusterGroup({
@@ -312,5 +322,33 @@ const updateMarkers = () => {
   background: linear-gradient(135deg, rgba(244,114,182,0.9), rgba(56,189,248,0.9));
   border: 3px solid rgba(255,255,255,0.5);
   font-size: 1rem;
+}
+
+/* Notion Light Theme Overrides */
+[data-theme="notion"] .marker-dot.standard {
+  background: #000;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+[data-theme="notion"] .marker-dot.instant {
+  background: var(--secondary-color);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+[data-theme="notion"] .marker-dot.active {
+  background: var(--primary-color);
+  border: 3px solid #fff;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+[data-theme="notion"] .marker-pulse {
+  display: none;
+}
+[data-theme="notion"] .cluster-small,
+[data-theme="notion"] .cluster-medium,
+[data-theme="notion"] .cluster-large {
+  background: #000;
+  border: 2px solid #fff;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 </style>

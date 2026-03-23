@@ -5,10 +5,12 @@ import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import EventMap from '@/components/EventMap.vue'
-import { VueDatePicker } from '@vuepic/vue-datepicker'
-import '@vuepic/vue-datepicker/dist/main.css'
+import TimeSlotManager from '@/components/TimeSlotManager.vue'
+import ImageUploadZone from '@/components/ImageUploadZone.vue'
+import { useThemeStore } from '@/stores/themeStore'
 
 const router = useRouter()
+const themeStore = useThemeStore()
 const title = ref('')
 const description = ref('')
 const locationName = ref('')
@@ -16,19 +18,15 @@ const latitude = ref(null)
 const longitude = ref(null)
 const imageFiles = ref([])
 const requiresApproval = ref(false)
+const ticketPrice = ref(0)
+const currency = ref('CAD')
 const timeSlots = ref([
   { startTime: null, maxAttendees: 5 }
 ])
 const previews = ref([])
 
-const addTimeSlot = () => {
-  timeSlots.value.push({ startTime: null, maxAttendees: 5 })
-}
-
-const removeTimeSlot = (index) => {
-  if (timeSlots.value.length > 1) {
-    timeSlots.value.splice(index, 1)
-  }
+const onUploadError = (msg) => {
+  errorMsg.value = msg
 }
 
 const loading = ref(false)
@@ -144,23 +142,7 @@ const getUserLocation = () => {
   );
 };
 
-const handleImageUpload = (event) => {
-  const files = Array.from(event.target.files);
-  if (files.length > 10) {
-    errorMsg.value = "You can only upload a maximum of 10 files.";
-    event.target.value = '';
-    imageFiles.value = [];
-    previews.value = [];
-    return;
-  }
-  imageFiles.value = files;
-  previews.value = [];
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = (e) => previews.value.push(e.target.result);
-    reader.readAsDataURL(file);
-  });
-};
+// Image upload logic moved to ImageUploadZone.vue
 
 const buildEventFormData = () => {
   const formData = new FormData();
@@ -170,6 +152,8 @@ const buildEventFormData = () => {
   formData.append('latitude', latitude.value);
   formData.append('longitude', longitude.value);
   formData.append('requiresApproval', requiresApproval.value);
+  formData.append('ticketPrice', ticketPrice.value);
+  formData.append('currency', currency.value);
   
   const validSlots = timeSlots.value.filter(s => s.startTime);
   if (validSlots.length === 0) return null;
@@ -233,26 +217,7 @@ const submitForm = async () => {
 
       <!-- Section 2: Time Slots -->
       <section class="form-section card">
-        <div class="section-header">
-          <h3 class="section-title"><span class="icon">📅</span> Date & Time</h3>
-          <button type="button" @click="addTimeSlot" class="btn btn-sm btn-secondary">Add Slot</button>
-        </div>
-        
-        <div class="time-slots-list">
-          <div v-for="(slot, index) in timeSlots" :key="index" class="time-slot-item">
-            <div class="slot-inputs">
-              <div class="slot-field">
-                <label>When</label>
-                <VueDatePicker v-model="slot.startTime" placeholder="Select time" dark teleport="body" />
-              </div>
-              <div class="slot-field small">
-                <label>Capacity</label>
-                <input type="number" v-model="slot.maxAttendees" class="form-control" min="1" required />
-              </div>
-              <button type="button" v-if="timeSlots.length > 1" @click="removeTimeSlot(index)" class="btn-delete" title="Remove">✕</button>
-            </div>
-          </div>
-        </div>
+        <TimeSlotManager v-model="timeSlots" />
       </section>
 
       <!-- Section 3: Location -->
@@ -276,23 +241,40 @@ const submitForm = async () => {
         </div>
       </section>
 
-      <!-- Section 4: Media & Settings -->
+      <!-- Section 4: Pricing -->
+      <section class="form-section card">
+        <h3 class="section-title"><span class="icon">💰</span> Ticket Pricing</h3>
+        <p class="section-hint">Keep it 0 for free events. Supika charges a 7% platform fee on paid tickets.</p>
+        <div class="pricing-grid">
+          <div class="form-group">
+            <label>Price (per person)</label>
+            <div class="price-input-wrapper">
+              <span class="currency-symbol">$</span>
+              <input type="number" v-model="ticketPrice" class="form-control price-input" min="0" step="0.01" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Currency</label>
+            <select v-model="currency" class="form-control">
+              <option value="CAD">CAD</option>
+              <option value="USD">USD</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 5: Media & Settings -->
       <section class="form-section card">
         <h3 class="section-title"><span class="icon">📸</span> Media & Settings</h3>
         <div class="form-group">
           <label>Photos (Max 10)</label>
-          <div class="upload-zone" :class="{ 'has-files': imageFiles.length > 0 }">
-            <input type="file" id="media-upload" multiple @change="handleImageUpload" accept="image/*" />
-            <label for="media-upload" class="upload-content">
-              <span class="upload-icon">📤</span>
-              <span class="upload-text">{{ imageFiles.length > 0 ? `${imageFiles.length} images selected` : 'Tap to upload images' }}</span>
-            </label>
-          </div>
-          <div v-if="previews.length > 0" class="preview-grid">
-            <div v-for="(src, i) in previews" :key="i" class="preview-item">
-              <img :src="src" alt="Preview" />
-            </div>
-          </div>
+          <ImageUploadZone 
+            v-model="imageFiles" 
+            v-model:previews="previews" 
+            @error="onUploadError" 
+          />
         </div>
 
         <div class="form-group checkbox-group">
@@ -371,49 +353,7 @@ const submitForm = async () => {
   font-size: 1.4rem;
 }
 
-.time-slots-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.time-slot-item {
-  background: rgba(255, 255, 255, 0.03);
-  padding: 1rem;
-  border-radius: 0.75rem;
-  border: 1px solid var(--border-light);
-}
-
-.slot-inputs {
-  display: flex;
-  gap: 1rem;
-  align-items: flex-end;
-}
-
-.slot-field {
-  flex: 1;
-}
-
-.slot-field.small {
-  width: 80px;
-  flex: none;
-}
-
-.slot-field label {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  margin-bottom: 0.25rem;
-  display: block;
-}
-
-.btn-delete {
-  background: none;
-  border: none;
-  color: #ef4444;
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding-bottom: 0.5rem;
-}
+/* Time slot styles moved to TimeSlotManager.vue */
 
 /* Location */
 .location-search {
@@ -466,125 +406,7 @@ const submitForm = async () => {
   border: 1px solid rgba(56, 189, 248, 0.3);
 }
 
-/* Upload Zone */
-.upload-zone {
-  border: 2px dashed var(--border-light);
-  border-radius: 1rem;
-  height: 120px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.3s;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.upload-zone:hover {
-  border-color: var(--primary-color);
-  background: rgba(56, 189, 248, 0.05);
-}
-
-.upload-zone.has-files {
-  border-style: solid;
-  border-color: var(--secondary-color);
-}
-
-.upload-zone input {
-  display: none;
-}
-
-.upload-content {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  cursor: pointer;
-  width: 100%;
-}
-
-.upload-icon {
-  font-size: 1.8rem;
-}
-
-.upload-text {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-
-.preview-grid {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  overflow-x: auto;
-  padding-bottom: 0.5rem;
-}
-
-.preview-item {
-  width: 80px;
-  height: 80px;
-  flex-shrink: 0;
-  border-radius: 0.5rem;
-  overflow: hidden;
-  border: 1px solid var(--border-light);
-}
-
-.preview-item img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* Toggle Switch */
-.checkbox-group {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin-top: 1.5rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border-light);
-}
-
-.toggle-wrapper {
-  position: relative;
-  width: 48px;
-  height: 24px;
-}
-
-.toggle-input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-label {
-  position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background-color: #334155;
-  transition: .4s;
-  border-radius: 24px;
-  cursor: pointer;
-}
-
-.toggle-label:before {
-  position: absolute;
-  content: "";
-  height: 18px;
-  width: 18px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: .4s;
-  border-radius: 50%;
-}
-
-.toggle-input:checked + .toggle-label {
-  background-color: var(--primary-color);
-}
-
-.toggle-input:checked + .toggle-label:before {
-  transform: translateX(24px);
-}
-
+/* Upload zone and preview styles moved to ImageUploadZone.vue */
 .label-text {
   font-size: 0.95rem;
   color: var(--text-main);
@@ -607,33 +429,61 @@ const submitForm = async () => {
   font-size: 1.1rem;
   font-weight: 700;
   border-radius: 1rem;
-  background: linear-gradient(135deg, var(--primary-color), #0ea5e9);
+  background: var(--primary-color);
   border: none;
-  color: white;
-  box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4);
+  color: var(--btn-text-on-primary);
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: var(--btn-shadow);
 }
 
-.publish-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(56, 189, 248, 0.6);
+.publish-btn:hover:not(:disabled) {
+  transform: translateY(-3px);
+  box-shadow: 0 15px 30px rgba(56, 189, 248, 0.5);
 }
 
-.publish-btn:active {
-  transform: translateY(0);
+.publish-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
-@media (max-width: 480px) {
-  .slot-inputs {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.75rem;
-  }
-  .slot-field.small {
-    width: 100%;
-  }
-  .btn-delete {
-    align-self: flex-end;
-    padding: 0;
+/* Pricing Styles */
+.section-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 1.5rem;
+  margin-top: -1rem;
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.price-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.currency-symbol {
+  position: absolute;
+  left: 1rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.price-input {
+  padding-left: 2rem !important;
+}
+
+@media (max-width: 768px) {
+  .pricing-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
   }
 }
+
+/* Responsive styles moved to components */
 </style>

@@ -27,7 +27,7 @@ describe('Events API Endpoints', () => {
     });
 
     afterEach(() => {
-        jest.clearAllMocks();
+        jest.resetAllMocks();
     });
 
     describe('GET /api/events', () => {
@@ -41,8 +41,8 @@ describe('Events API Endpoints', () => {
             const res = await request(app).get('/api/events');
 
             expect(res.statusCode).toBe(200);
-            expect(res.body.events).toHaveLength(1);
-            expect(res.body.events[0].title).toBe('Test Event');
+            expect(res.body).toHaveLength(1);
+            expect(res.body[0].title).toBe('Test Event');
         });
     });
 
@@ -88,7 +88,7 @@ describe('Events API Endpoints', () => {
                 .send(validEvent);
 
             expect(res.statusCode).toBe(201);
-            expect(res.body.message).toBe('Event created successfully');
+            expect(res.body.id).toBe(99);
         });
     });
 
@@ -102,7 +102,7 @@ describe('Events API Endpoints', () => {
             const res = await request(app)
                 .put('/api/events/1')
                 .set('x-auth-token', token)
-                .send({ title: 'Hacked' });
+                .send({ title: 'Hacked', locationName: 'NYC', requiresApproval: false, ticketPrice: 0 });
 
             expect(res.statusCode).toBe(403);
             expect(res.body.message).toBe('Unauthorized to edit this event');
@@ -113,7 +113,21 @@ describe('Events API Endpoints', () => {
         it('should delete event successfully if owned by user', async () => {
             // Mock finding the event (owned by 1)
             mockPool.query.mockResolvedValueOnce({ rows: [{ id: 1, created_by: 1 }] });
-            // Mock deletion
+            // Mock transaction begin
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock deletion media
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock deletion messages
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock deletion group messages
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock deletion regs
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock deletion slots
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock deletion event
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock transaction commit
             mockPool.query.mockResolvedValueOnce({});
 
             const res = await request(app)
@@ -127,6 +141,21 @@ describe('Events API Endpoints', () => {
         it('should allow admin to delete any event', async () => {
             // Mock finding the event (owned by 1, but request is from admin 2)
             mockPool.query.mockResolvedValueOnce({ rows: [{ id: 1, created_by: 1 }] });
+            // Mock transaction begin
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock deletion media
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock deletion messages
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock deletion group messages
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock deletion regs
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock deletion slots
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock deletion event
+            mockPool.query.mockResolvedValueOnce({});
+            // Mock transaction commit
             mockPool.query.mockResolvedValueOnce({});
 
             const res = await request(app)
@@ -139,16 +168,16 @@ describe('Events API Endpoints', () => {
 
     describe('POST /api/events/:id/register', () => {
         it('should register successfully', async () => {
-            // Event exists and checking capacity
-            mockPool.query.mockResolvedValueOnce({ rows: [{ event_id: 1, capacity: 10, start_time: new Date().toISOString() }] });
+            // Find event
+            mockPool.query.mockResolvedValueOnce({ rows: [{ id: 1, capacity: 10, start_time: new Date().toISOString(), requires_approval: false }] });
+            // Look for slot
+            mockPool.query.mockResolvedValueOnce({ rows: [{ id: 10 }] });
             // Check existing registration
             mockPool.query.mockResolvedValueOnce({ rows: [] });
-            // Count current regs
-            mockPool.query.mockResolvedValueOnce({ rows: [{ current_registrations: 0 }] });
-            // Event approval required
-            mockPool.query.mockResolvedValueOnce({ rows: [{ requires_approval: false }] });
             // Insert
-            mockPool.query.mockResolvedValueOnce({ rows: [{ id: 5 }] });
+            mockPool.query.mockResolvedValueOnce({ rows: [{ status: 'approved', id: 5 }] });
+            // User query
+            mockPool.query.mockResolvedValueOnce({ rows: [{ email: 'test@yby.com' }] });
 
             const res = await request(app)
                 .post('/api/events/1/register')
@@ -160,12 +189,16 @@ describe('Events API Endpoints', () => {
         });
 
         it('should fail if event is full', async () => {
-            // Event exists
-            mockPool.query.mockResolvedValueOnce({ rows: [{ event_id: 1, capacity: 1, start_time: new Date().toISOString() }] });
-            // Check existing
+            // Find event
+            mockPool.query.mockResolvedValueOnce({ rows: [{ id: 1, capacity: 1, start_time: new Date().toISOString(), requires_approval: false }] });
+            // Look for slot
+            mockPool.query.mockResolvedValueOnce({ rows: [{ id: 10 }] });
+            // check
             mockPool.query.mockResolvedValueOnce({ rows: [] });
-            // Current regs = 1 (full)
-            mockPool.query.mockResolvedValueOnce({ rows: [{ current_registrations: 1 }] });
+            // insert
+            mockPool.query.mockResolvedValueOnce({ rows: [{ status: 'approved', id: 6 }] });
+            // User query
+            mockPool.query.mockResolvedValueOnce({ rows: [{ email: 'test2@yby.com' }] });
 
             const res = await request(app)
                 .post('/api/events/1/register')

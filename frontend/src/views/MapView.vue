@@ -127,16 +127,16 @@ const formatLocation = (loc) => {
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
-  background: rgba(15, 15, 20, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-blur);
+  -webkit-backdrop-filter: var(--card-blur);
+  border: 1px solid var(--border-light);
   padding: 0.6rem 1.4rem;
   border-radius: 30px;
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #fff;
+  color: var(--text-main);
   font-size: 0.85rem;
   font-weight: 600;
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
@@ -166,11 +166,11 @@ const formatLocation = (loc) => {
   width: 48px;
   height: 48px;
   border-radius: 50%;
-  border: 1px solid rgba(255,255,255,0.15);
-  background: rgba(15,15,20,0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: #38bdf8;
+  border: 1px solid var(--border-light);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-blur);
+  -webkit-backdrop-filter: var(--card-blur);
+  color: var(--primary-color);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -180,8 +180,8 @@ const formatLocation = (loc) => {
 }
 
 .locate-fab:hover {
-  background: rgba(56, 189, 248, 0.15);
-  border-color: rgba(56, 189, 248, 0.4);
+  background: var(--input-bg);
+  border-color: var(--primary-color);
   transform: scale(1.08);
   box-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
 }
@@ -203,13 +203,13 @@ const formatLocation = (loc) => {
   pointer-events: auto;
   max-width: 420px;
   margin: 0 auto;
-  background: rgba(18, 18, 24, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-blur);
+  -webkit-backdrop-filter: var(--card-blur);
+  border: 1px solid var(--border-light);
   border-radius: 20px;
   overflow: hidden;
-  box-shadow: 0 -4px 30px rgba(0,0,0,0.5);
+  box-shadow: var(--card-shadow);
   position: relative;
 }
 
@@ -221,9 +221,9 @@ const formatLocation = (loc) => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: rgba(0,0,0,0.6);
-  border: none;
-  color: white;
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  color: var(--text-main);
   font-size: 0.9rem;
   cursor: pointer;
   display: flex;
@@ -270,7 +270,7 @@ const formatLocation = (loc) => {
   font-size: 1.15rem;
   font-weight: 700;
   margin: 0 0 0.6rem;
-  color: #fff;
+  color: var(--text-main);
 }
 
 .preview-meta {
@@ -291,7 +291,7 @@ const formatLocation = (loc) => {
   border: none;
   border-radius: 12px;
   background: linear-gradient(135deg, #38bdf8, #818cf8);
-  color: #000;
+  color: var(--btn-text-on-primary);
   font-weight: 700;
   font-size: 0.95rem;
   cursor: pointer;

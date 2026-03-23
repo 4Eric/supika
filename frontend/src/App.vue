@@ -4,10 +4,12 @@ import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useRouter, useRoute } from 'vue-router'
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { useThemeStore } from '@/stores/themeStore'
 import axios from 'axios'
 
 const authStore = useAuthStore()
 const uiStore = useUiStore()
+const themeStore = useThemeStore()
 const router = useRouter()
 const route = useRoute()
 
@@ -83,6 +85,7 @@ const pageTitle = computed(() => {
   if (route.path.startsWith('/event/') && route.path.endsWith('/edit')) return 'Edit Event'
   if (route.path.startsWith('/event/')) return 'Event Details'
   if (route.path.startsWith('/host/')) return 'Host Profile'
+  if (route.path === '/host-landing') return 'Grow Your Tribe'
   return 'Dashboard'
 })
 </script>
@@ -140,6 +143,10 @@ const pageTitle = computed(() => {
       </nav>
 
       <div class="sidebar-footer">
+        <button @click="themeStore.toggleTheme" class="nav-item theme-toggle-btn" style="width: 100%; border: none; background: transparent; text-align: left; cursor: pointer;">
+          <span class="icon">{{ themeStore.activeTheme === 'dark' ? '☀️' : '🌙' }}</span> 
+          Toggle Theme
+        </button>
         <template v-if="authStore.isAuthenticated">
           <button @click="logout" class="btn-logout">Logout</button>
         </template>
@@ -160,7 +167,10 @@ const pageTitle = computed(() => {
           </div>
           
           <template v-if="authStore.isAuthenticated">
-            <router-link to="/create" class="btn btn-create">+ Create Event</router-link>
+            <button @click="themeStore.toggleTheme" class="btn btn-icon theme-header-btn" title="Toggle Theme" style="padding: 0.5rem; border: none; font-size: 1.2rem; cursor: pointer; background: transparent;">
+               {{ themeStore.activeTheme === 'dark' ? '☀️' : '🌙' }}
+            </button>
+            <router-link to="/host-landing" class="btn btn-create">+ Create Event</router-link>
             <div class="user-profile-badge" @click="router.push('/profile')">
               <div class="avatar">{{ authStore.user?.username.charAt(0).toUpperCase() }}</div>
             </div>
@@ -220,13 +230,12 @@ const pageTitle = computed(() => {
   height: auto;
   object-fit: contain;
   mix-blend-mode: screen;
-  filter: drop-shadow(0 0 20px rgba(56, 189, 248, 0.4));
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 .logo-img:hover {
-  filter: drop-shadow(0 0 24px rgba(56, 189, 248, 0.5));
   transform: scale(1.03);
+  opacity: 0.9;
 }
 
 .nav-section-title {
@@ -251,7 +260,7 @@ const pageTitle = computed(() => {
   width: 4px;
 }
 .nav-links::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--border-light);
   border-radius: 10px;
 }
 
@@ -273,8 +282,8 @@ const pageTitle = computed(() => {
 }
 
 .nav-item:hover {
-  background-color: rgba(255, 255, 255, 0.05);
-  color: white;
+  background-color: var(--border-light);
+  color: var(--text-main);
 }
 
 .nav-item.router-link-active {
@@ -299,7 +308,7 @@ const pageTitle = computed(() => {
 .btn-logout {
   width: 100%;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--border-light);
   color: var(--text-muted);
   padding: 0.85rem;
   border-radius: 0.5rem;
@@ -337,9 +346,9 @@ const pageTitle = computed(() => {
   align-items: center;
   padding: 0 3rem;
   border-bottom: 1px solid var(--border-light);
-  background: rgba(9, 9, 11, 0.8);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-blur);
+  -webkit-backdrop-filter: var(--card-blur);
   z-index: 50;
 }
 
@@ -372,9 +381,9 @@ const pageTitle = computed(() => {
 .global-search {
   width: 250px;
   padding: 0.6rem 1rem 0.6rem 2.5rem;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: var(--input-bg);
   border: 1px solid var(--border-light);
-  color: white;
+  color: var(--text-main);
   border-radius: 2rem;
   outline: none;
   font-family: inherit;
@@ -383,7 +392,7 @@ const pageTitle = computed(() => {
 
 .global-search:focus {
   width: 300px;
-  background-color: rgba(255, 255, 255, 0.1);
+  background-color: var(--border-light);
   border-color: var(--primary-color);
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
 }
@@ -417,7 +426,7 @@ const pageTitle = computed(() => {
   justify-content: center;
   font-weight: bold;
   font-size: 1.2rem;
-  color: black;
+  color: var(--btn-text-on-primary);
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
 }
 
@@ -471,7 +480,6 @@ const pageTitle = computed(() => {
   width: auto;
   object-fit: contain;
   mix-blend-mode: screen;
-  filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.4));
 }
 
 .mobile-page-title {
@@ -489,7 +497,7 @@ const pageTitle = computed(() => {
 .hamburger-btn {
   background: none;
   border: none;
-  color: white;
+  color: var(--text-main);
   font-size: 1.5rem;
   cursor: pointer;
   padding: 0.5rem;
@@ -611,5 +619,10 @@ const pageTitle = computed(() => {
   border-radius: 1rem;
   margin-left: auto;
   box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+[data-theme="notion"] .logo-img,
+[data-theme="notion"] .logo-img-mobile {
+  filter: invert(1);
+  mix-blend-mode: normal;
 }
 </style>

@@ -247,7 +247,7 @@ const rejectEvent = () => {
 .discover-btn {
   padding: 0.9rem 1.5rem;
   background: linear-gradient(135deg, #38bdf8, #818cf8);
-  color: #000;
+  color: var(--btn-text-on-primary);
   font-weight: 700;
   border: none;
   border-radius: 14px;
@@ -274,7 +274,7 @@ const rejectEvent = () => {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(0,0,0,0.2);
-  border-top-color: #000;
+  border-top-color: var(--btn-text-on-primary);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
@@ -391,7 +391,7 @@ const rejectEvent = () => {
   flex: 1;
   padding: 0.85rem;
   background: linear-gradient(135deg, #34d399, #38bdf8);
-  color: #000;
+  color: var(--btn-text-on-primary);
   font-weight: 700;
   border: none;
   border-radius: 12px;

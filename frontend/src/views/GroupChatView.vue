@@ -334,10 +334,10 @@ const formatMessageTime = (dateString) => {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: rgba(9, 9, 11, 0.85); /* Very dark, semi-transparent */
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-blur);
+  -webkit-backdrop-filter: var(--card-blur);
+  border-bottom: 1px solid var(--border-light);
   display: flex;
   align-items: center;
   padding: 0.75rem 0.5rem;
@@ -403,7 +403,7 @@ const formatMessageTime = (dateString) => {
   color: var(--text-muted);
   font-size: 0.95rem;
   padding: 2rem;
-  background: rgba(255,255,255,0.03);
+  background: var(--input-bg);
   border-radius: 1rem;
 }
 .empty-icon {
@@ -445,14 +445,14 @@ const formatMessageTime = (dateString) => {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--bg-lighter), var(--border-light));
+  background: var(--input-bg);
   color: var(--text-main);
   font-size: 0.75rem;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255,255,255,0.1);
+  border: 1px solid var(--border-light);
 }
 
 .msg-content-wrapper {
@@ -481,8 +481,8 @@ const formatMessageTime = (dateString) => {
 
 /* Sent message tail grouping logic */
 .bubble-sent {
-  background: linear-gradient(135deg, #0ea5e9, #3b82f6); /* Primary Brand Gradient */
-  color: white;
+  background: var(--primary-color);
+  color: var(--bg-color);
   border-bottom-right-radius: 0.35rem; /* Sharp corner for sent */
   border-top-right-radius: 0.35rem; /* Assume grouped middle */
 }
@@ -494,8 +494,8 @@ const formatMessageTime = (dateString) => {
 
 /* Received message tail grouping logic */
 .bubble-received {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
   color: var(--text-main);
   border-bottom-left-radius: 0.35rem;
   border-top-left-radius: 0.35rem;
@@ -522,10 +522,10 @@ const formatMessageTime = (dateString) => {
   position: sticky;
   bottom: 0;
   z-index: 10;
-  background: rgba(9, 9, 11, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-top: 1px solid rgba(255,255,255,0.05);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-blur);
+  -webkit-backdrop-filter: var(--card-blur);
+  border-top: 1px solid var(--border-light);
   padding: 0.75rem;
   /* Safe area padding for iPhones with Home Bars */
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
@@ -554,21 +554,21 @@ const formatMessageTime = (dateString) => {
   padding: 0;
 }
 .btn-icon:hover {
-  background: rgba(255,255,255,0.05);
+  background: var(--border-light);
   color: var(--text-main);
 }
 
 .input-wrapper {
   flex: 1;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
   border-radius: 24px; /* Highly rounded pill shape */
   overflow: hidden;
   transition: border-color 0.2s, background 0.2s;
 }
 .input-wrapper:focus-within {
-  background: rgba(255,255,255,0.1);
-  border-color: rgba(56, 189, 248, 0.4);
+  background: var(--border-light);
+  border-color: var(--primary-color);
 }
 
 .chat-input {
@@ -585,7 +585,7 @@ const formatMessageTime = (dateString) => {
 }
 
 .btn-send {
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  background: var(--primary-color);
   border: none;
   width: 40px;
   height: 40px;
@@ -593,7 +593,7 @@ const formatMessageTime = (dateString) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
+  color: var(--bg-color);
   cursor: pointer;
   flex-shrink: 0;
   box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3);
@@ -603,9 +603,9 @@ const formatMessageTime = (dateString) => {
   transform: scale(0.9);
 }
 .btn-send:disabled {
-  background: rgba(255,255,255,0.1);
+  background: var(--border-light);
   box-shadow: none;
-  color: rgba(255,255,255,0.3);
+  color: var(--text-muted);
 }
 
 /* Emoji Picker Positioning */
@@ -625,6 +625,14 @@ const formatMessageTime = (dateString) => {
   --ep-color-s-text: #94a3b8;
   border-radius: 12px;
   box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+}
+
+[data-theme="notion"] .custom-emoji-picker {
+  --ep-color-bg: #ffffff;
+  --ep-color-border: #e2e8f0;
+  --ep-color-text: #0f172a;
+  --ep-color-s-text: #64748b;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.1);
 }
 
 /* Transitions */

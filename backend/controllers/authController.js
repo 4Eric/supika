@@ -17,16 +17,31 @@ const register = async (req, res) => {
             const token = req.header('x-auth-token');
             if (token) {
                 try {
-                    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret');
+                    const secret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_secret' : null);
+                    if (!secret) return next(); // Should be handled by middle-ware or threw later
+                    const decoded = jwt.verify(token, secret);
                     if (decoded.user.role === 'admin') assignedRole = 'admin';
                 } catch (e) { }
-            }
-        } else if (role) assignedRole = role;
+                }
+            } else if (role) assignedRole = role;
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
-        const result = await pool.query('INSERT INTO "Users" (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role', [username, email, hashedPassword, assignedRole]);
-        res.status(201).json({ message: 'Registered', user: mapToCamelCase(result.rows[0]) });
+        
+        let newUserId;
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
+            const result = await client.query('INSERT INTO "Users" (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role', [username, email, hashedPassword, assignedRole]);
+            newUserId = result.rows[0].id;
+            await client.query('COMMIT');
+            res.status(201).json({ message: 'Registered', user: mapToCamelCase(result.rows[0]) });
+        } catch (dbError) {
+            await client.query('ROLLBACK');
+            throw dbError;
+        } finally {
+            client.release();
+        }
     } catch (error) {
         if (error.code === '23505') return res.status(400).json({ message: 'Exists' });
         console.error(error); res.status(500).json({ message: 'Error' });
@@ -43,7 +58,8 @@ const login = async (req, res) => {
             return res.status(400).json({ message: 'Invalid credentials' });
         }
         const payload = { user: { id: user.id, role: user.role } };
-        const secret = process.env.JWT_SECRET || 'secret';
+        const secret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_secret' : null);
+        if (!secret) throw new Error('JWT_SECRET is not configured');
 
         const token = await new Promise((resolve, reject) => {
             jwt.sign(payload, secret, { expiresIn: '1h' }, (err, token) => {
@@ -98,7 +114,8 @@ const refreshToken = async (req, res) => {
         const userRes = await pool.query('SELECT id, role FROM "Users" WHERE id = $1', [result.rows[0].user_id]);
         if (userRes.rows.length === 0) return res.status(401).json({ message: 'Not found' });
         const payload = { user: { id: userRes.rows[0].id, role: userRes.rows[0].role } };
-        const secret = process.env.JWT_SECRET || 'secret';
+        const secret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_secret' : null);
+        if (!secret) throw new Error('JWT_SECRET is not configured');
 
         const token = await new Promise((resolve, reject) => {
             jwt.sign(payload, secret, { expiresIn: '1h' }, (err, token) => {
@@ -147,7 +164,7 @@ const adminGetUsers = async (req, res) => {
         const pool = await poolPromise;
         let sql = 'SELECT id, username, email, role, created_at FROM "Users"', params = [];
         if (search) { sql += ' WHERE username ILIKE $1 OR email ILIKE $1'; params.push(`%${search}%`); }
-        sql += ' ORDER BY created_at DESC';
+        sql += ' ORDER BY created_at DESC LIMIT 100';
         const result = await pool.query(sql, params);
         res.json(mapToCamelCase(result.rows));
     } catch (e) { console.error(e); res.status(500).json({ message: 'Error' }); }

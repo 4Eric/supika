@@ -133,11 +133,11 @@ const formatRelativeTime = (dateString) => {
   padding: 1.5rem 1.25rem 0.5rem;
   position: sticky;
   top: 0;
-  background: rgba(9, 9, 11, 0.85); /* Dark frosted glass */
+  background: var(--card-bg); /* Dark frosted glass */
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   z-index: 10;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid var(--border-light);
 }
 
 .page-header h1 {
@@ -202,13 +202,13 @@ const formatRelativeTime = (dateString) => {
 }
 
 .chat-row:active {
-  background-color: rgba(255,255,255,0.05);
+  background-color: var(--border-light);
 }
 
 /* Desktop Hover */
 @media (hover: hover) {
   .chat-row:hover {
-    background-color: rgba(255,255,255,0.03);
+    background-color: var(--input-bg);
   }
 }
 
@@ -238,7 +238,7 @@ const formatRelativeTime = (dateString) => {
   justify-content: center;
   font-size: 1.25rem;
   font-weight: 600;
-  color: white;
+  color: var(--btn-text-on-primary);
   background-color: var(--surface-color);
 }
 
@@ -320,7 +320,7 @@ const formatRelativeTime = (dateString) => {
   font-size: 0.65rem;
   padding: 0.15rem 0.5rem;
   border-radius: 1rem;
-  background: rgba(255,255,255,0.08);
+  background: var(--border-light);
   color: var(--text-muted);
   white-space: nowrap;
   max-width: 100px;
@@ -337,11 +337,11 @@ const formatRelativeTime = (dateString) => {
     border: 1px solid var(--border-light);
     background: var(--card-bg);
     overflow: hidden;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    box-shadow: 0 10px 30px var(--shadow-color);
   }
   
   .page-header {
-    background: rgba(30, 41, 59, 0.6); /* Slightly lighter on desktop card */
+    background: var(--page-header-desktop-bg); /* Slightly lighter on desktop card */
   }
   
   .chat-row:not(:last-child)::after {

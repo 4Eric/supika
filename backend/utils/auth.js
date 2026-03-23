@@ -10,7 +10,8 @@ const auth = (req, res, next) => {
 
     // Verify token
     try {
-        const secret = process.env.JWT_SECRET || 'secret';
+        const secret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_secret' : null);
+        if (!secret) throw new Error('JWT_SECRET is not configured');
         const decoded = jwt.verify(token, secret);
         req.user = decoded.user;
         next();

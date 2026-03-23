@@ -183,11 +183,11 @@ const goBack = () => {
 }
 .chat-card {
   background: var(--card-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: var(--card-blur);
+  -webkit-backdrop-filter: var(--card-blur);
   border: 1px solid var(--border-light);
   border-radius: 0.5rem;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+  box-shadow: var(--card-shadow);
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -254,7 +254,7 @@ const goBack = () => {
 }
 .message.sent .message-bubble {
   background: var(--primary-color);
-  color: #fff;
+  color: var(--bg-color);
   border-bottom-right-radius: 0.25rem;
 }
 .message.received .message-bubble {
@@ -304,7 +304,7 @@ const goBack = () => {
   flex: 1;
   border-radius: 2rem;
   padding: 0.75rem 1.25rem;
-  background: var(--bg-color);
+  background: var(--input-bg);
   color: var(--text-main);
   border: 1px solid var(--border-light);
 }
@@ -315,7 +315,7 @@ const goBack = () => {
 }
 .btn-outline:hover {
   background: var(--primary-color);
-  color: white;
+  color: var(--bg-color);
 }
 
 @media (max-width: 768px) {

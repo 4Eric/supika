@@ -2,6 +2,7 @@ const { poolPromise } = require('../config/db');
 const { mapToCamelCase } = require('../utils/mapper');
 const { sendConfirmationEmail } = require('../utils/mailer');
 const cacheService = require('../utils/cacheService');
+const { invalidateEventCaches } = require('../utils/cacheHelper');
 
 const getAllEvents = async (req, res) => {
     try {
@@ -45,11 +46,18 @@ const getAllEvents = async (req, res) => {
     }
 };
 
+const { syncPendingTransactions } = require('../utils/stripeSync');
+
 const getRegisteredEvents = async (req, res) => {
     try {
         const pool = await poolPromise;
+
+        // Before returning registrations, let's check for any "Pending" payments 
+        // to sync them with Stripe (important for local dev without webhooks)
+        await syncPendingTransactions(req.user.id);
+
         const result = await pool.query(`
-            SELECT e.*, r.status, ts.start_time AS date, ts.id AS time_slot_id
+            SELECT e.*, r.status, r.ticket_token, ts.start_time AS date, ts.id AS time_slot_id
             FROM "Events" e
             JOIN "EventTimeSlots" ts ON e.id = ts.event_id
             JOIN "Registrations" r ON ts.id = r.time_slot_id
@@ -138,6 +146,7 @@ const normalizeEventData = (body) => {
     const {
         title, description, locationName, location_name,
         latitude, longitude, requiresApproval, requires_approval,
+        ticketPrice, ticket_price, currency,
         timeSlots, time_slots, date
     } = body;
 
@@ -148,6 +157,8 @@ const normalizeEventData = (body) => {
         latitude: (latitude !== undefined && latitude !== null) ? parseFloat(latitude) : null,
         longitude: (longitude !== undefined && longitude !== null) ? parseFloat(longitude) : null,
         requiresApproval: (requiresApproval !== undefined) ? (requiresApproval === 'true' || requiresApproval === true) : (requires_approval === 'true' || requires_approval === true),
+        ticketPrice: (ticketPrice !== undefined && ticketPrice !== null) ? parseFloat(ticketPrice) : (ticket_price !== undefined ? parseFloat(ticket_price) : 0),
+        currency: currency || 'CAD',
         timeSlots: timeSlots || time_slots,
         date
     };
@@ -206,21 +217,20 @@ const createEvent = async (req, res) => {
         await client.query('BEGIN');
         const primaryImage = getPrimaryImage(req.files);
         const result = await client.query(`
-            INSERT INTO "Events" (title, description, location_name, latitude, longitude, created_by, image_url, requires_approval)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+            INSERT INTO "Events" (title, description, location_name, latitude, longitude, created_by, image_url, requires_approval, ticket_price, currency)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *
         `, [
             data.title || null, data.description || null, data.locationName || null,
             data.latitude, data.longitude, req.user.id,
-            primaryImage, data.requiresApproval
+            primaryImage, data.requiresApproval,
+            data.ticketPrice, data.currency
         ]);
         const eventId = result.rows[0].id;
         await insertTimeSlots(client, eventId, data.timeSlots, data.date);
         await insertEventMedia(client, eventId, req.files);
         await client.query('COMMIT');
 
-        // Invalidate global events caches on new creation
-        cacheService.del('all_events_upcoming');
-        cacheService.del('all_events_past');
+        invalidateEventCaches(eventId);
 
         res.status(201).json(mapToCamelCase(result.rows[0]));
     } catch (error) {
@@ -235,10 +245,11 @@ const createEvent = async (req, res) => {
 const performUpdate = async (client, eventId, data, files) => {
     let params = [
         data.title, data.description, data.locationName,
-        data.latitude, data.longitude, data.requiresApproval
+        data.latitude, data.longitude, data.requiresApproval,
+        data.ticketPrice, data.currency
     ];
-    let sql = `UPDATE "Events" SET title=$1, description=$2, location_name=$3, latitude=$4, longitude=$5, requires_approval=$6`;
-    let paramCount = 6;
+    let sql = `UPDATE "Events" SET title=$1, description=$2, location_name=$3, latitude=$4, longitude=$5, requires_approval=$6, ticket_price=$7, currency=$8`;
+    let paramCount = 8;
 
     if (files && files.length > 0) {
         const firstImg = files.find(fi => fi.mimetype.startsWith('image/'));
@@ -273,18 +284,11 @@ const updateEvent = async (req, res) => {
     const pool = await poolPromise;
     const client = await pool.connect();
     try {
-        const check = await pool.query('SELECT created_by FROM "Events" WHERE id = $1', [eventId]);
-        if (check.rows.length === 0) return res.status(404).json({ message: 'Event not found' });
-        if (check.rows[0].created_by != req.user.id) return res.status(403).json({ message: 'Unauthorized' });
-
         await client.query('BEGIN');
         await performUpdate(client, eventId, data, req.files);
         await client.query('COMMIT');
 
-        // Invalidate caches
-        cacheService.del('all_events_upcoming');
-        cacheService.del('all_events_past');
-        cacheService.del(`event_${eventId}`);
+        invalidateEventCaches(eventId);
 
         res.json({ message: 'Updated' });
     } catch (error) {
@@ -298,66 +302,69 @@ const updateEvent = async (req, res) => {
 
 const registerForEvent = async (req, res) => {
     try {
-        console.log('Register Request Body:', req.body);
+        // Authentication required — guests can no longer register
+        if (!req.user) return res.status(401).json({ message: 'Login required to register for events' });
+
         const { timeSlotId, time_slot_id: timeSlotIdSnake } = req.body;
         const slotIdToUse = timeSlotId || timeSlotIdSnake;
         const pool = await poolPromise;
         const eventRes = await pool.query('SELECT * FROM "Events" WHERE id = $1', [req.params.id]);
         if (eventRes.rows.length === 0) return res.status(404).json({ message: 'Not found' });
         const event = eventRes.rows[0];
+
         let slotId = slotIdToUse;
         if (!slotId) {
             const s = await pool.query('SELECT id FROM "EventTimeSlots" WHERE event_id = $1 ORDER BY start_time ASC LIMIT 1', [event.id]);
             if (s.rows.length > 0) slotId = s.rows[0].id;
         }
-        await pool.query('INSERT INTO "Registrations" (user_id, event_id, time_slot_id, status) VALUES ($1, $2, $3, $4)', [req.user.id, event.id, slotId, event.requires_approval ? 'pending' : 'approved']);
-        const u = await pool.query('SELECT email FROM "Users" WHERE id = $1', [req.user.id]);
-        if (u.rows.length > 0) sendConfirmationEmail(u.rows[0].email, event);
 
-        // Mutate Cache: Increment attendee count in the global lists without flushing them
-        ['all_events_upcoming', 'all_events_past'].forEach(key => {
-            const currentEvents = cacheService.get(key);
-            if (currentEvents) {
-                const idx = currentEvents.findIndex(e => e.id == req.params.id);
-                if (idx !== -1) {
-                    if (!event.requires_approval) {
-                        currentEvents[idx].attendeeCount = (parseInt(currentEvents[idx].attendeeCount) || 0) + 1;
-                        cacheService.set(key, currentEvents);
-                    }
-                }
-            }
-        });
-        cacheService.del(`event_${req.params.id}`);
+        // Check if already registered
+        const existingReg = await pool.query(`SELECT status FROM "Registrations" WHERE user_id = $1 AND time_slot_id = $2`, [req.user.id, slotId]);
+
+        let currentStatus;
+        if (existingReg.rows.length > 0) {
+            const regRes = await pool.query(`
+                UPDATE "Registrations" SET status = $1 
+                WHERE user_id = $2 AND time_slot_id = $3
+                RETURNING status, id
+            `, [event.requires_approval ? 'pending' : 'approved', req.user.id, slotId]);
+            currentStatus = regRes.rows[0].status;
+        } else {
+            const regRes = await pool.query(`
+                INSERT INTO "Registrations" (user_id, event_id, time_slot_id, status) 
+                VALUES ($1, $2, $3, $4)
+                RETURNING status, id
+            `, [req.user.id, event.id, slotId, event.requires_approval ? 'pending' : 'approved']);
+            currentStatus = regRes.rows[0].status;
+        }
+
+        const u = await pool.query('SELECT email FROM "Users" WHERE id = $1', [req.user.id]);
+        if (u.rows.length > 0 && currentStatus === 'approved') sendConfirmationEmail(u.rows[0].email, event);
+
+        invalidateEventCaches(req.params.id);
 
         res.json({ message: 'Registered' });
     } catch (e) {
-        console.error(e);
-        res.status(500).json({ message: 'Error: ' + e.message, detail: e.detail });
+        console.error('Registration failed:', e);
+        res.status(500).json({ message: 'Registration failed' });
     }
 };
 
 const deregisterFromEvent = async (req, res) => {
     try {
+        if (!req.user) return res.status(401).json({ message: 'Login required' });
+
         const slotId = req.body.timeSlotId || req.body.time_slot_id || req.query.timeSlotId || req.query.time_slot_id;
         const pool = await poolPromise;
-        let sql = 'DELETE FROM "Registrations" WHERE user_id = $1 AND event_id = $2', params = [req.user.id, req.params.id];
+
+        let sql = 'DELETE FROM "Registrations" WHERE user_id = $1 AND event_id = $2';
+        let params = [req.user.id, req.params.id];
         if (slotId) { sql += ' AND time_slot_id = $3'; params.push(slotId); }
         const r = await pool.query(sql, params);
+
         if (r.rowCount === 0) return res.status(404).json({ message: 'Not found' });
 
-        // Mutate Cache: Decrement attendee count
-        ['all_events_upcoming', 'all_events_past'].forEach(key => {
-            const currentEvents = cacheService.get(key);
-            if (currentEvents) {
-                const idx = currentEvents.findIndex(e => e.id == req.params.id);
-                if (idx !== -1) {
-                    const newCount = (parseInt(currentEvents[idx].attendeeCount) || 0) - 1;
-                    currentEvents[idx].attendeeCount = Math.max(0, newCount);
-                    cacheService.set(key, currentEvents);
-                }
-            }
-        });
-        cacheService.del(`event_${req.params.id}`);
+        invalidateEventCaches(req.params.id);
 
         res.json({ message: 'Deregistered' });
     } catch (e) { console.error(e); res.status(500).json({ message: 'Error' }); }
@@ -366,10 +373,21 @@ const deregisterFromEvent = async (req, res) => {
 const getAttendees = async (req, res) => {
     try {
         const pool = await poolPromise;
-        const check = await pool.query('SELECT created_by FROM "Events" WHERE id = $1', [req.params.id]);
-        if (check.rows.length === 0) return res.status(404).json({ message: 'Not found' });
-        if (check.rows[0].created_by != req.user.id) return res.status(403).json({ message: 'Unauthorized' });
-        const r = await pool.query('SELECT u.id, u.username, u.email, r.status, r.registration_date as created_at, ts.start_time as time_slot FROM "Registrations" r JOIN "Users" u ON r.user_id = u.id LEFT JOIN "EventTimeSlots" ts ON r.time_slot_id = ts.id WHERE r.event_id = $1 ORDER BY r.registration_date DESC', [req.params.id]);
+        const r = await pool.query(`
+            SELECT 
+                u.id, 
+                u.username, 
+                u.email, 
+                r.status, 
+                r.registration_date as created_at, 
+                r.check_in_time,
+                ts.start_time as time_slot
+            FROM "Registrations" r 
+            JOIN "Users" u ON r.user_id = u.id 
+            LEFT JOIN "EventTimeSlots" ts ON r.time_slot_id = ts.id 
+            WHERE r.event_id = $1 
+            ORDER BY r.registration_date DESC
+        `, [req.params.id]);
         res.json(mapToCamelCase(r.rows));
     } catch (e) { console.error(e); res.status(500).json({ message: 'Error' }); }
 };
@@ -379,11 +397,11 @@ const updateAttendeeStatus = async (req, res) => {
         const { status } = req.body;
         if (!['pending', 'approved', 'rejected'].includes(status)) return res.status(400).json({ message: 'Invalid' });
         const pool = await poolPromise;
-        const check = await pool.query('SELECT created_by FROM "Events" WHERE id = $1', [req.params.id]);
-        if (check.rows.length === 0) return res.status(404).json({ message: 'Not found' });
-        if (check.rows[0].created_by != req.user.id) return res.status(403).json({ message: 'Unauthorized' });
         const r = await pool.query('UPDATE "Registrations" SET status = $1 WHERE user_id = $2 AND event_id = $3', [status, req.params.userId, req.params.id]);
         if (r.rowCount === 0) return res.status(404).json({ message: 'Not found' });
+        
+        invalidateEventCaches(req.params.id);
+
         res.json({ message: 'Updated' });
     } catch (e) { console.error(e); res.status(500).json({ message: 'Error' }); }
 };
@@ -391,9 +409,6 @@ const updateAttendeeStatus = async (req, res) => {
 const deleteEvent = async (req, res) => {
     try {
         const pool = await poolPromise;
-        const check = await pool.query('SELECT created_by FROM "Events" WHERE id = $1', [req.params.id]);
-        if (check.rows.length === 0) return res.status(404).json({ message: 'Not found' });
-        if (check.rows[0].created_by != req.user.id) return res.status(403).json({ message: 'Unauthorized' });
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
@@ -406,15 +421,57 @@ const deleteEvent = async (req, res) => {
             await client.query('DELETE FROM "Events" WHERE id = $1', [id]);
             await client.query('COMMIT');
 
-            // Invalidate caches
-            cacheService.del('all_events_upcoming');
-            cacheService.del('all_events_past');
-            cacheService.del(`event_${id}`);
+            invalidateEventCaches(id);
 
             res.json({ message: 'Deleted' });
         } catch (err) { await client.query('ROLLBACK'); throw err; }
         finally { client.release(); }
     } catch (e) { console.error(e); res.status(500).json({ message: 'Error' }); }
+};
+
+const getEventMemories = async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        const result = await pool.query(`
+            SELECT em.id, em.image_url as "imageUrl", em.created_at as "createdAt", u.username as "uploaderName"
+            FROM "EventMemories" em
+            JOIN "Users" u ON em.user_id = u.id
+            WHERE em.event_id = $1
+            ORDER BY em.created_at DESC
+        `, [req.params.id]);
+        res.json(result.rows);
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ message: 'Server error' });
+    }
+};
+
+const addEventMemory = async (req, res) => {
+    try {
+        const pool = await poolPromise;
+        if (!req.files || req.files.length === 0) {
+            console.warn('Memory Upload: No image provided');
+            return res.status(400).json({ message: 'No image provided' });
+        }
+
+        const file = req.files[0];
+        const imageUrl = process.env.USE_LOCAL_STORAGE === 'true' ? file.filename : file.path;
+
+        const eventId = parseInt(req.params.id);
+        const userId = parseInt(req.user.id);
+
+        console.log(`Memory Upload: Event ${eventId}, User ${userId}, Image ${imageUrl}`);
+
+        await pool.query(
+            'INSERT INTO "EventMemories" (event_id, user_id, image_url) VALUES ($1, $2, $3)',
+            [eventId, userId, imageUrl]
+        );
+
+        res.json({ success: true, message: 'Memory uploaded successfully' });
+    } catch (e) {
+        console.error('Memory Upload Error:', e.message);
+        res.status(500).json({ message: 'Server error during memory upload: ' + e.message });
+    }
 };
 
 module.exports = {
@@ -428,5 +485,7 @@ module.exports = {
     deregisterFromEvent,
     getAttendees,
     updateAttendeeStatus,
-    deleteEvent
+    deleteEvent,
+    getEventMemories,
+    addEventMemory
 };

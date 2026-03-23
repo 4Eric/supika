@@ -13,12 +13,15 @@ const publicInfo = ref(null)
 const upcomingEvents = ref([])
 const pastEvents = ref([])
 const loading = ref(true)
+const followLoading = ref(false)
+const authStore = useAuthStore()
 
 const fetchHostData = async () => {
   try {
-    loading.value = true
     // Fetch Profile
-    const profileRes = await axios.get(`${API_URL}/api/users/${hostId}/public`)
+    const profileRes = await axios.get(`${API_URL}/api/users/${hostId}/public`, {
+      headers: authStore.isAuthenticated ? { 'x-auth-token': authStore.token } : {}
+    })
     publicInfo.value = profileRes.data
 
     // Fetch Events (Upcoming)
@@ -32,6 +35,34 @@ const fetchHostData = async () => {
     console.error('Failed to load host data:', err)
   } finally {
     loading.value = false
+  }
+}
+
+const toggleFollow = async () => {
+  if (!authStore.isAuthenticated) {
+    router.push('/login')
+    return
+  }
+  
+  try {
+    followLoading.value = true
+    if (publicInfo.value.isFollowing) {
+      await axios.delete(`${API_URL}/api/users/${hostId}/unfollow`, {
+        headers: { 'x-auth-token': authStore.token }
+      })
+      publicInfo.value.isFollowing = false
+      publicInfo.value.followersCount = Math.max(0, (publicInfo.value.followersCount || 0) - 1)
+    } else {
+      await axios.post(`${API_URL}/api/users/${hostId}/follow`, {}, {
+        headers: { 'x-auth-token': authStore.token }
+      })
+      publicInfo.value.isFollowing = true
+      publicInfo.value.followersCount = (publicInfo.value.followersCount || 0) + 1
+    }
+  } catch (err) {
+    console.error('Failed to toggle follow:', err)
+  } finally {
+    followLoading.value = false
   }
 }
 
@@ -72,18 +103,28 @@ const goToEvent = (id) => {
         <h1 class="host-name">{{ publicInfo.username }}</h1>
         <span class="role-pill">Event Organizer</span>
 
+        <button 
+          v-if="!authStore.user || authStore.user.id != hostId"
+          class="btn follow-btn" 
+          :class="{'following': publicInfo.isFollowing}"
+          @click="toggleFollow"
+          :disabled="followLoading"
+        >
+          {{ publicInfo.isFollowing ? 'Following' : 'Follow Host' }}
+        </button>
+
         <div class="stats-grid">
           <div class="stat-card">
             <span class="stat-value">{{ publicInfo.eventsHostedCount }}</span>
-            <span class="stat-label">Events Hosted</span>
+            <span class="stat-label">Events</span>
           </div>
           <div class="stat-card">
-            <span class="stat-value">{{ publicInfo.totalAttendeesCount }}</span>
-            <span class="stat-label">Total Attendees</span>
+            <span class="stat-value">{{ publicInfo.followersCount || 0 }}</span>
+            <span class="stat-label">Followers</span>
           </div>
           <div class="stat-card">
-            <span class="stat-value">{{ new Date(publicInfo.createdAt).getFullYear() }}</span>
-            <span class="stat-label">Joined</span>
+            <span class="stat-value">{{ publicInfo.followingCount || 0 }}</span>
+            <span class="stat-label">Following</span>
           </div>
         </div>
       </div>
@@ -207,7 +248,7 @@ const goToEvent = (id) => {
   justify-content: center;
   font-size: 3rem;
   font-weight: 800;
-  color: #000;
+  color: var(--btn-text-on-primary);
   box-shadow: 0 0 40px rgba(56, 189, 248, 0.4);
   border: 4px solid rgba(255, 255, 255, 0.1);
 }
@@ -243,6 +284,27 @@ const goToEvent = (id) => {
   color: var(--primary-color);
   border: 1px solid rgba(56, 189, 248, 0.2);
   margin-bottom: 2rem;
+}
+
+.follow-btn {
+  margin-bottom: 2rem;
+  padding: 0.6rem 2rem;
+  border-radius: 2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  color: white;
+  border: none;
+  box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4);
+  transition: all 0.2s ease;
+}
+.follow-btn.following {
+  background: rgba(255,255,255,0.1);
+  color: var(--text-main);
+  border: 1px solid rgba(255,255,255,0.2);
+  box-shadow: none;
+}
+.follow-btn:hover {
+  transform: translateY(-2px);
 }
 
 .stats-grid {

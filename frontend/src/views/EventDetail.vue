@@ -5,16 +5,87 @@ import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
 import EventMap from '@/components/EventMap.vue'
+import EventHero from '@/components/EventHero.vue'
+import AttendeeList from '@/components/AttendeeList.vue'
 import { getImageUrl } from '@/utils/imageUrl'
+import { useAsync } from '@/composables/useAsync'
+import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
+import QrcodeVue from 'qrcode.vue'
 
 const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const event = ref(null)
-const loading = ref(true)
 const registering = ref(false)
 const selectedTimeSlot = ref(null)
 const message = ref('')
+const uploadingMemory = ref(false)
+const memoryUploadError = ref('')
+const showUploadModal = ref(false)
+const showCancelConfirm = ref(false)
+const cancelTargetSlotId = ref(null) // locked when cancel modal opens
+const showTicketModal = ref(false)
+
+const { loading, execute: executeFetchEvent } = useAsync(async (id) => {
+  const res = await axios.get(`${API_URL}/api/events/${id}`)
+  event.value = res.data
+  return res.data
+})
+
+const { data: memories, execute: executeFetchMemories } = useAsync(async (id) => {
+  const res = await axios.get(`${API_URL}/api/events/${id}/memories`)
+  return res.data
+}, { initialData: [] })
+
+const { data: attendees, execute: executeFetchAttendees } = useAsync(async (id) => {
+  const res = await axios.get(`${API_URL}/api/events/${id}/attendees`, {
+    headers: { 'x-auth-token': authStore.token }
+  })
+  return res.data
+}, { initialData: [] })
+
+const { execute: executeFetchMyRegistrations } = useAsync(async (id) => {
+  if (!authStore.isAuthenticated || !authStore.token) return
+  const eventIdNum = parseInt(id)
+  const regRes = await axios.get(`${API_URL}/api/events/registered/me`, {
+    headers: { 'x-auth-token': authStore.token }
+  })
+  const userRegs = regRes.data.filter(e => e.id === eventIdNum)
+  if (userRegs.length > 0) {
+    registeredSlots.value = userRegs.map(r => ({ 
+      slotId: r.timeSlotId, 
+      status: r.status,
+      ticketToken: r.ticketToken || r.ticket_token
+    }))
+  }
+})
+const checkingOut = ref(false)
+
+const handleCheckout = async () => {
+  if (!selectedTimeSlot.value) {
+    message.value = 'Please select a time slot'
+    return
+  }
+  
+  checkingOut.value = true
+  try {
+    const res = await axios.post(`${API_URL}/api/payments/checkout`, {
+      eventId: event.value.id,
+      timeSlotId: selectedTimeSlot.value
+    }, {
+      headers: { 'x-auth-token': authStore.token }
+    })
+    
+    if (res.data.url) {
+      window.location.href = res.data.url
+    }
+  } catch (err) {
+    console.error('Checkout failed', err)
+    message.value = err.response?.data?.message || err.message || 'Checkout failed. Please try again.'
+  } finally {
+    checkingOut.value = false
+  }
+}
 
 const registeredSlots = ref([])
 
@@ -23,7 +94,6 @@ const selectedSlotReg = computed(() => {
 })
 const isRegisteredForSelected = computed(() => !!selectedSlotReg.value)
 const selectedSlotStatus = computed(() => selectedSlotReg.value?.status || '')
-const attendees = ref([])
 const showAttendees = ref(false)
 
 const hasApprovedRegistration = computed(() => {
@@ -39,42 +109,65 @@ const canJoinGroupChat = computed(() => {
   return registeredSlots.value.some(s => s.slotId === selectedTimeSlot.value && s.status === 'approved')
 })
 
-const currentSlide = ref(0)
-const nextSlide = () => {
-  if (event.value?.media) {
-    currentSlide.value = (currentSlide.value + 1) % event.value.media.length
-  }
-}
-const prevSlide = () => {
-  if (event.value?.media) {
-    currentSlide.value = (currentSlide.value - 1 + event.value.media.length) % event.value.media.length
-  }
-}
+const currentTicketToken = computed(() => {
+  if (!selectedTimeSlot.value) return null
+  // Loose equality check to handle string vs number
+  const reg = registeredSlots.value.find(s => s.slotId == selectedTimeSlot.value)
+  return reg ? reg.ticketToken : null
+})
+
 
 onMounted(async () => {
   try {
-    const res = await axios.get(`${API_URL}/api/events/${route.params.id}`)
-    event.value = res.data
-    
+    const id = route.params.id
+    await executeFetchEvent(id)
+
     if (authStore.isAuthenticated) {
-      const regRes = await axios.get(`${API_URL}/api/events/registered/me`, {
-        headers: { 'x-auth-token': authStore.token }
-      })
-      const userRegs = regRes.data.filter(e => e.id === event.value.id)
-      if (userRegs.length > 0) {
-        registeredSlots.value = userRegs.map(r => ({ slotId: r.timeSlotId, status: r.status }))
-      }
-      
+      await executeFetchMyRegistrations(id)
+
       // If creator, load attendees
       if (event.value.createdBy === authStore.user?.id) {
-        fetchAttendees()
+        executeFetchAttendees(id)
       }
+
+      executeFetchMemories(id)
     }
   } catch (error) {
     message.value = "Event not found or failed to load."
-  } finally {
-    loading.value = false
   }
+})
+
+const fetchMemories = () => executeFetchMemories(route.params.id)
+
+const handleMemoryUpload = async (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+
+  uploadingMemory.value = true
+  memoryUploadError.value = ''
+  
+  const formData = new FormData()
+  formData.append('media', file)
+
+  try {
+    await axios.post(`${API_URL}/api/events/${event.value.id}/memories`, formData, {
+      headers: { 
+        'x-auth-token': authStore.token,
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    showUploadModal.value = false
+    fetchMemories()
+  } catch (err) {
+    memoryUploadError.value = "Failed to upload memory. Try again."
+  } finally {
+    uploadingMemory.value = false
+  }
+}
+
+const isEventPast = computed(() => {
+  if (!event.value?.timeSlots?.length) return false
+  return event.value.timeSlots.some(slot => slot.startTime && new Date(slot.startTime) < new Date())
 })
 
 const registerForEvent = async () => {
@@ -82,24 +175,21 @@ const registerForEvent = async () => {
     message.value = "Please login to register for this event."
     return
   }
-  
+
   if (!selectedTimeSlot.value) {
     message.value = "Please select an available Time Slot first."
     return
   }
-  
+
   registering.value = true
   message.value = ''
-  
+
   try {
-    await axios.post(`${API_URL}/api/events/${event.value.id}/register`, 
+    await axios.post(`${API_URL}/api/events/${event.value.id}/register`,
       { timeSlotId: selectedTimeSlot.value },
       { headers: { 'x-auth-token': authStore.token } }
     )
-    registeredSlots.value.push({
-      slotId: selectedTimeSlot.value,
-      status: event.value.requiresApproval ? 'pending' : 'approved'
-    })
+    await executeFetchMyRegistrations(event.value.id)
     message.value = event.value.requiresApproval ? "Request sent. Waiting for organizer approval." : "Successfully registered! A confirmation email has been sent."
   } catch (error) {
     message.value = error.response?.data?.message || "Failed to register."
@@ -108,36 +198,48 @@ const registerForEvent = async () => {
   }
 }
 
-const deregisterForEvent = async () => {
-  if (!authStore.isAuthenticated) return
-  
+const deregisterForEvent = async (confirmed = false) => {
+  if (confirmed !== true) {
+    cancelTargetSlotId.value = selectedTimeSlot.value
+    showCancelConfirm.value = true
+    return
+  }
+  showCancelConfirm.value = false
+
+  const isPaid = event.value?.ticketPrice > 0
+  const targetSlot = cancelTargetSlotId.value || selectedTimeSlot.value
+
   registering.value = true
   message.value = ''
-  
+
   try {
-    await axios.delete(`${API_URL}/api/events/${event.value.id}/register`, {
-      headers: { 'x-auth-token': authStore.token },
-      data: { timeSlotId: selectedTimeSlot.value }
-    })
-    registeredSlots.value = registeredSlots.value.filter(s => s.slotId !== selectedTimeSlot.value)
-    message.value = "Successfully canceled registration."
+    if (isPaid) {
+      await axios.post(`${API_URL}/api/payments/refund`, {
+        eventId: event.value.id,
+        timeSlotId: targetSlot
+      }, { headers: { 'x-auth-token': authStore.token } })
+      message.value = '✅ Refund issued! It may take 5–10 business days to appear.'
+    } else {
+      await axios.delete(`${API_URL}/api/events/${event.value.id}/register`, {
+        headers: { 'x-auth-token': authStore.token },
+        data: { timeSlotId: targetSlot }
+      })
+      message.value = 'Successfully canceled registration.'
+    }
+
+    registeredSlots.value = registeredSlots.value.filter(s => s.slotId !== targetSlot)
+    cancelTargetSlotId.value = null
   } catch (error) {
-    message.value = error.response?.data?.message || "Failed to cancel registration."
+    message.value = error.response?.data?.message || 'Failed to cancel registration.'
   } finally {
     registering.value = false
   }
 }
 
-const fetchAttendees = async () => {
-  try {
-    const res = await axios.get(`${API_URL}/api/events/${event.value.id}/attendees`, {
-      headers: { 'x-auth-token': authStore.token }
-    })
-    attendees.value = res.data
-  } catch (err) {
-    console.error("Failed to load attendees")
-  }
-}
+
+const confirmCancel = () => deregisterForEvent(true)
+
+const fetchAttendees = () => executeFetchAttendees(route.params.id)
 
 const updateAttendeeStatus = async (userId, status) => {
   try {
@@ -155,53 +257,16 @@ const updateAttendeeStatus = async (userId, status) => {
 <template>
   <div class="event-detail-page">
     <div v-if="loading" class="loading-overlay">
-      <div class="spinner"></div>
+      <LoadingSkeleton type="detail" />
     </div>
     <div v-else-if="event" class="page-content">
       
-      <!-- Hero Media (Edge-to-Edge) -->
-      <div class="hero-section">
-        <div v-if="event.media && event.media.length > 0" class="carousel-container">
-          <div class="carousel-slide" v-for="(media, index) in event.media" :key="media.id" v-show="index === currentSlide">
-            <img v-if="media.mediaType === 'image'" :src="getImageUrl(media.mediaUrl)" class="carousel-media" />
-            <video v-else-if="media.mediaType === 'video'" :src="getImageUrl(media.mediaUrl)" controls class="carousel-media autoplay-video"></video>
-          </div>
-          <button v-if="event.media.length > 1" @click="prevSlide" class="carousel-btn prev-btn">❮</button>
-          <button v-if="event.media.length > 1" @click="nextSlide" class="carousel-btn next-btn">❯</button>
-          <div v-if="event.media.length > 1" class="carousel-indicators">
-            <span v-for="(media, index) in event.media" :key="'ind-'+media.id" 
-                  :class="['indicator', { active: index === currentSlide }]" 
-                  @click="currentSlide = index">
-            </span>
-          </div>
-        </div>
-        <div v-else class="event-hero-banner" :style="{ backgroundImage: 'url(' + getImageUrl(event.imageUrl) + ')' }"></div>
-        
-        <!-- Back Button Overlay -->
-        <button class="back-btn" @click="router.back()">
-          ← Back
-        </button>
-      </div>
+      <EventHero :event="event" />
 
       <!-- Main Body layout -->
       <div class="main-layout">
         <!-- Left / Body Content -->
         <div class="event-body">
-          <div class="body-header">
-            <h1 class="event-title">{{ event.title }}</h1>
-            <div class="meta-badges">
-              <router-link :to="`/host/${event.createdBy}`" class="badge creator-badge clickable">
-                <span class="badge-icon">👤</span> By {{ event.creatorName || 'unknown' }}
-              </router-link>
-              <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" class="badge location-badge">
-                <span class="badge-icon">📍</span> {{ event.locationName }}
-              </a>
-              <span v-if="event.creatorName === 'eFinder.ai'" class="badge ai-source-badge">🤖 AI Discovered</span>
-              <a v-if="event.sourceUrl" :href="event.sourceUrl" target="_blank" class="badge source-badge">
-                <span class="badge-icon">🔗</span> View Original Source
-              </a>
-            </div>
-          </div>
           
           <div v-if="event.timeSlots && event.timeSlots.length > 0" class="section time-slots-section">
             <h3 class="section-title">Select a Time Slot</h3>
@@ -240,26 +305,69 @@ const updateAttendeeStatus = async (userId, status) => {
             </div>
           </div>
 
-          <!-- Attendee Management Panel (Creator Only) -->
-          <div class="section attendees-panel" v-if="showAttendees && event.createdBy === authStore.user?.id">
-            <h3 class="section-title">Attendees Hub</h3>
-            <ul v-if="attendees.length > 0" class="attendees-list">
-              <li v-for="att in attendees" :key="att.id" class="attendee-card">
-                <div class="att-info">
-                  <strong @click="router.push(`/chat/${event.id}/${att.id}`)" class="clickable-username">{{ att.username }}</strong>
-                  <span class="att-email">{{ att.email }}</span>
-                  <span class="att-timeslot" v-if="att.timeSlot">⌚ {{ new Date(att.timeSlot).toLocaleString([], {weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) }}</span>
-                  <span class="badge" :class="att.status">{{ att.status }}</span>
+          <!-- Memory Board Section -->
+          <div class="section memory-board-section">
+            <div class="section-header-flex">
+              <h3 class="section-title">Memory Board</h3>
+              <button v-if="hasApprovedRegistration || event.createdBy === authStore.user?.id" 
+                      @click="showUploadModal = true" 
+                      class="btn-sm btn-outline">
+                📸 Add Memory
+              </button>
+            </div>
+            
+            <div v-if="memories.length > 0" class="memories-masonry">
+              <div v-for="mem in memories" :key="mem.id" class="memory-card">
+                <img :src="getImageUrl(mem.imageUrl)" class="memory-img" loading="lazy" />
+                <div class="memory-info">
+                  <span class="uploader-name">by {{ mem.uploaderName }}</span>
                 </div>
-                <div class="att-actions">
-                  <button v-if="att.status !== 'approved'" @click="updateAttendeeStatus(att.id, 'approved')" class="btn-icon approve-btn" title="Approve">✓</button>
-                  <button v-if="att.status !== 'rejected'" @click="updateAttendeeStatus(att.id, 'rejected')" class="btn-icon reject-btn" title="Reject">✕</button>
-                </div>
-              </li>
-            </ul>
-            <p v-else class="empty-state">No one has registered for your event yet.</p>
+              </div>
+            </div>
+            <div v-else class="empty-memories glass-panel">
+              <p>No memories shared yet. {{ isEventPast ? 'Be the first to share a moment!' : 'Check back after the vibe starts!' }}</p>
+            </div>
           </div>
-        </div>
+
+          <!-- Upload Modal -->
+          <div v-if="showUploadModal" class="modal-overlay" @click.self="showUploadModal = false">
+            <div class="modal-content glass-panel">
+              <h3>Share a Moment</h3>
+              <p>Upload a photo from this event to the Memory Board.</p>
+              <input type="file" @change="handleMemoryUpload" accept="image/*" class="file-input" :disabled="uploadingMemory" />
+              <div v-if="uploadingMemory" class="upload-status">Uploading...</div>
+              <div v-if="memoryUploadError" class="error-text">{{ memoryUploadError }}</div>
+              <button @click="showUploadModal = false" class="btn-sm">Cancel</button>
+            </div>
+          </div>
+
+          <!-- Attendee Management Panel (Creator Only) -->
+          <AttendeeList 
+            v-if="showAttendees && event.createdBy === authStore.user?.id"
+            :attendees="attendees"
+            :isCreator="true"
+            :eventId="event.id"
+            @updateStatus="updateAttendeeStatus"
+            @refresh="executeFetchAttendees(event.id)"
+          />
+
+          <!-- Cancel Confirmation Modal -->
+          <div v-if="showCancelConfirm" class="modal-overlay" @click.self="showCancelConfirm = false">
+            <div class="modal-content glass-panel" style="max-width: 420px;">
+              <h3 style="font-size: 1.6rem; margin-bottom: 0.75rem;">Cancel Registration?</h3>
+              <p v-if="event.ticketPrice > 0" style="color: var(--text-muted); margin-bottom: 1.5rem;">
+                You paid <strong>${{ event.ticketPrice }}</strong> for this ticket. A <strong>full refund</strong> will be issued to your original payment method within <strong>5–10 business days</strong>.
+              </p>
+              <p v-else style="color: var(--text-muted); margin-bottom: 1.5rem;">
+                Are you sure you want to cancel your registration for this event?
+              </p>
+              <button @click="confirmCancel" :disabled="registering" class="action-btn danger-btn" style="margin-bottom: 0.75rem;">
+                {{ registering ? 'Processing...' : (event.ticketPrice > 0 ? '✅ Yes, Cancel & Refund' : '✅ Yes, Cancel') }}
+              </button>
+              <button @click="showCancelConfirm = false" class="btn-sm btn-outline" style="width: 100%; padding: 10px;">{{ event.ticketPrice > 0 ? 'Keep my ticket' : 'No, Go back' }}</button>
+            </div>
+          </div><!-- end showCancelConfirm -->
+          </div><!-- closes event-body -->
 
         <!-- Right / Bottom Action Bar -->
         <div class="action-sidebar">
@@ -272,9 +380,9 @@ const updateAttendeeStatus = async (userId, status) => {
                 </button>
               </div>
               <div class="role-actions" v-else>
-                <div v-if="selectedTimeSlot">
-                  <div class="slot-summary">
-                     Selected Slot: <strong>{{ new Date(event.timeSlots.find(s => s.id === selectedTimeSlot)?.startTime).toLocaleString([], {weekday: 'short', hour: '2-digit', minute:'2-digit'}) }}</strong>
+                <div v-if="selectedTimeSlot && event.timeSlots">
+                  <div class="slot-summary" v-if="event.timeSlots.find(s => s.id === selectedTimeSlot)">
+                     Selected Slot: <strong>{{ new Date(event.timeSlots.find(s => s.id === selectedTimeSlot).startTime).toLocaleString([], {weekday: 'short', hour: '2-digit', minute:'2-digit'}) }}</strong>
                   </div>
                   <div v-if="isRegisteredForSelected" class="status-alert" :class="selectedSlotStatus">
                     {{ selectedSlotStatus === 'pending' ? '⏳ Pending Organizer Approval' : (selectedSlotStatus === 'rejected' ? '❌ Registration Rejected' : '✅ You are registered!') }}
@@ -282,14 +390,23 @@ const updateAttendeeStatus = async (userId, status) => {
                 </div>
 
                 <div class="main-actions-grid">
-                  <button v-if="!isRegisteredForSelected" @click="registerForEvent" :disabled="registering || !selectedTimeSlot" class="action-btn primary-btn pulse-glow">
-                    {{ registering ? 'Registering...' : 'Complete Registration' }}
-                  </button>
+                  <template v-if="!isRegisteredForSelected">
+                    <button v-if="event.ticketPrice > 0" @click="handleCheckout" :disabled="checkingOut || !selectedTimeSlot" class="action-btn primary-btn pulse-glow">
+                      {{ checkingOut ? 'Redirecting...' : `Buy Ticket - $${event.ticketPrice}` }}
+                    </button>
+                    <button v-else @click="registerForEvent" :disabled="registering || !selectedTimeSlot" class="action-btn primary-btn pulse-glow">
+                      {{ registering ? 'Registering...' : 'Complete Registration' }}
+                    </button>
+                  </template>
                   <button v-else @click="deregisterForEvent" :disabled="registering" class="action-btn danger-btn">
                     Cancel Registration
                   </button>
+
+                  <button v-if="isRegisteredForSelected && selectedSlotStatus === 'approved'" @click="showTicketModal = true" class="action-btn highlight-btn">
+                    🎟️ Show Ticket (QR)
+                  </button>
                   
-                  <button @click="router.push(`/chat/${event.id}/${event.createdBy}`)" class="action-btn secondary-btn">
+                  <button v-if="authStore.isAuthenticated" @click="router.push(`/chat/${event.id}/${event.createdBy}`)" class="action-btn secondary-btn">
                     💬 Chat Organizer
                   </button>
                 </div>
@@ -310,7 +427,7 @@ const updateAttendeeStatus = async (userId, status) => {
             </template>
             <div v-else class="auth-prompt">
               <h3>Join the Vibe</h3>
-              <p>Log in to reserve your spot at this event.</p>
+              <p>Log in to register for this event.</p>
               <button @click="router.push('/login')" class="action-btn primary-btn">Login to Register</button>
             </div>
             
@@ -324,6 +441,34 @@ const updateAttendeeStatus = async (userId, status) => {
     <div v-else class="error-page">
       <h2>{{ message || 'Event not found.' }}</h2>
       <button @click="router.push('/')" class="action-btn outline-btn">Go Back Home</button>
+    </div>
+    <!-- Ticket QR Modal -->
+    <div v-if="showTicketModal" class="modal-overlay" @click.self="showTicketModal = false">
+      <div class="modal-content glass-panel ticket-modal">
+        <div class="modal-header">
+          <h3>Your Entry Ticket</h3>
+          <button @click="showTicketModal = false" class="close-btn">&times;</button>
+        </div>
+        <div class="ticket-body">
+          <p class="ticket-info">Present this QR code to the host for check-in.</p>
+          <div class="qr-container">
+            <template v-if="currentTicketToken">
+              <QrcodeVue 
+                :value="String(currentTicketToken)" 
+                :size="200"
+              />
+            </template>
+            <div v-else class="qr-error">
+              Ticket token missing...
+            </div>
+          </div>
+          <div class="event-mini-info">
+            <h4>{{ event.title }}</h4>
+            <p>{{ new Date(event.timeSlots.find(s => s.id === selectedTimeSlot).startTime).toLocaleString() }}</p>
+          </div>
+        </div>
+        <button @click="showTicketModal = false" class="action-btn primary-btn">Done</button>
+      </div>
     </div>
   </div>
 </template>
@@ -353,51 +498,6 @@ const updateAttendeeStatus = async (userId, status) => {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* Hero Section (Edge to Edge) */
-.hero-section {
-  position: relative;
-  width: 100%;
-  height: 45vh;
-  min-height: 300px;
-  background-color: #000;
-  overflow: hidden;
-}
-.hero-section::after {
-  content: '';
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 100px;
-  background: linear-gradient(to top, var(--bg-color), transparent);
-  pointer-events: none;
-}
-
-.carousel-container { width: 100%; height: 100%; position: relative; display: flex; align-items: center; justify-content: center; }
-.carousel-slide { width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
-.carousel-media { width: 100%; height: 100%; object-fit: cover; }
-.event-hero-banner { width: 100%; height: 100%; background-size: cover; background-position: center; }
-
-.back-btn {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  background: rgba(0,0,0,0.5);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255,255,255,0.2);
-  color: white;
-  padding: 8px 16px;
-  border-radius: 30px;
-  cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s;
-  z-index: 10;
-}
-.back-btn:hover { background: rgba(0,0,0,0.8); }
-
-.carousel-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); border: none; font-size: 1.5rem; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: 0.2s; z-index: 10; }
-.carousel-btn:hover { background: var(--primary-color); }
-.prev-btn { left: 15px; }
-.next-btn { right: 15px; }
-
 /* Main Layout & Glassmorphism */
 .main-layout {
   position: relative;
@@ -418,48 +518,16 @@ const updateAttendeeStatus = async (userId, status) => {
 }
 
 .glass-panel {
-  background: rgba(30, 30, 35, 0.4);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--card-bg);
+  backdrop-filter: var(--card-blur);
+  -webkit-backdrop-filter: var(--card-blur);
   border: 1px solid var(--border-light);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  box-shadow: var(--card-shadow);
 }
 
-/* Typography & Header */
-.body-header { margin-bottom: 2rem; }
-.event-title {
-  font-family: 'Outfit', sans-serif;
-  font-size: 2.2rem;
-  font-weight: 800;
-  line-height: 1.2;
-  margin-bottom: 1rem;
-  background: linear-gradient(135deg, #fff, var(--primary-color));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.meta-badges { display: flex; flex-wrap: wrap; gap: 0.8rem; }
-.badge.clickable {
-  cursor: pointer;
-  transition: all 0.2s;
-  color: var(--text-main);
-}
-.badge.clickable:hover {
-  background: rgba(56, 189, 248, 0.15);
-  border-color: var(--primary-color);
-  transform: translateY(-1px);
-}
-.badge.pending { color: #facc15; }
-.badge.approved { color: #34d399; }
-.badge.rejected { color: #ef4444; }
-.badge-icon { margin-right: 4px; }
-
-.location-badge { color: var(--primary-color); transition: all 0.2s; }
-.location-badge:hover { background: rgba(56, 189, 248, 0.1); border-color: var(--primary-color); transform: translateY(-1px); }
-
-.ai-source-badge { background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(56, 189, 248, 0.2)); border-color: rgba(168, 85, 247, 0.4); color: #c4b5fd; }
-.source-badge { color: #34d399; transition: all 0.2s; }
-.source-badge:hover { background: rgba(52, 211, 153, 0.1); border-color: rgba(52, 211, 153, 0.4); transform: translateY(-1px); }
+/* Hero and Header styles moved to EventHero.vue */
+.carousel-indicators { display: none; } /* cleanup */
+/* Badge styles moved to EventHero.vue */
 
 /* Sections */
 .section { margin-bottom: 2.5rem; animation: fadeInUp 0.5s ease backwards; }
@@ -472,7 +540,7 @@ const updateAttendeeStatus = async (userId, status) => {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.section-title { font-family: 'Outfit', sans-serif; font-size: 1.4rem; margin-bottom: 1rem; color: #fff; font-weight: 700; }
+.section-title { font-family: 'Outfit', sans-serif; font-size: 1.4rem; margin-bottom: 1rem; color: var(--text-main); font-weight: 700; }
 .desc-text { font-size: 1.05rem; color: var(--text-muted); line-height: 1.7; white-space: pre-wrap; }
 
 /* Time Slots (Scrollable Horizontal Cards) */
@@ -491,7 +559,7 @@ const updateAttendeeStatus = async (userId, status) => {
 .time-slot-card {
   flex: 0 0 auto;
   min-width: 150px;
-  background: rgba(255,255,255,0.03);
+  background: var(--input-bg);
   border: 1px solid var(--border-light);
   border-radius: 16px;
   padding: 1.25rem 1rem;
@@ -503,14 +571,14 @@ const updateAttendeeStatus = async (userId, status) => {
   color: var(--text-muted);
 }
 .time-slot-card:hover:not(:disabled) {
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.2);
+  background: var(--border-light);
+  border-color: var(--primary-color);
   transform: translateY(-2px);
 }
 .time-slot-card.active {
-  background: rgba(56, 189, 248, 0.1);
+  background: var(--selected-bg);
   border-color: var(--primary-color);
-  color: #fff;
+  color: var(--selected-text);
   box-shadow: 0 0 20px rgba(56, 189, 248, 0.15);
 }
 .time-slot-card.active::before {
@@ -524,7 +592,7 @@ const updateAttendeeStatus = async (userId, status) => {
 .time-slot-card.full { opacity: 0.5; cursor: not-allowed; }
 
 .slot-date { font-size: 0.85rem; text-transform: uppercase; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 4px; }
-.slot-time-text { font-size: 1.6rem; font-weight: 700; color: #fff; margin-bottom: 8px; font-family: 'Outfit', sans-serif; }
+.slot-time-text { font-size: 1.6rem; font-weight: 700; color: var(--text-main); margin-bottom: 8px; font-family: 'Outfit', sans-serif; }
 .time-slot-card.booked .slot-time-text { color: var(--secondary-color); }
 .slot-status { font-size: 0.8rem; }
 
@@ -544,11 +612,11 @@ const updateAttendeeStatus = async (userId, status) => {
   pointer-events: auto; /* Re-enable for the actual panel */
   border-radius: 20px;
   padding: 1.25rem;
-  background: rgba(20, 20, 25, 0.7); /* Slightly darker for contrast */
+  background: var(--card-bg); /* Slightly darker for contrast */
 }
 
-.action-title { font-family: 'Outfit', sans-serif; color: #fff; margin-bottom: 1rem; font-size: 1.2rem; }
-.slot-summary { font-size: 0.95rem; color: var(--text-muted); margin-bottom: 8px; text-align: center; }
+.action-title { font-family: 'Outfit', sans-serif; color: var(--text-main); margin-bottom: 1rem; font-size: 1.2rem; }
+.slot-summary { font-size: 0.95rem; color: var(--text-main); margin-bottom: 8px; text-align: center; }
 .status-alert { font-size: 0.95rem; text-align: center; padding: 10px; border-radius: 8px; margin-bottom: 12px; font-weight: 600;}
 .status-alert.pending { background: rgba(234, 179, 8, 0.15); color: #facc15; }
 .status-alert.approved { background: rgba(52, 211, 153, 0.15); color: #34d399; }
@@ -566,23 +634,23 @@ const updateAttendeeStatus = async (userId, status) => {
   transition: all 0.2s;
   display: flex; justify-content: center; align-items: center; gap: 8px;
 }
-.primary-btn { background: var(--primary-color); color: #000; box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3); font-weight: 700; }
+.primary-btn { background: var(--primary-color); color: var(--btn-text-on-primary); box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3); font-weight: 700; }
 .primary-btn:hover { background: var(--primary-hover); transform: translateY(-2px); }
 .primary-btn:disabled { background: #334155; box-shadow: none; color: #94a3b8; cursor: not-allowed; }
 
 .pulse-glow:not(:disabled) { animation: pulseGlow 2s infinite; }
 @keyframes pulseGlow { 0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4); } 70% { box-shadow: 0 0 0 12px rgba(56, 189, 248, 0); } 100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); } }
 
-.secondary-btn { background: rgba(255,255,255,0.05); color: #fff; border: 1px solid rgba(255,255,255,0.1); }
+.secondary-btn { background: var(--input-bg); color: var(--text-main); border: 1px solid var(--border-light); }
 .secondary-btn:hover { background: rgba(255,255,255,0.1); }
 .danger-btn { background: rgba(239, 68, 68, 0.1); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.2); }
 .danger-btn:hover { background: rgba(239, 68, 68, 0.2); }
-.highlight-btn { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: #000; font-weight: 700; }
+.highlight-btn { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: var(--btn-text-on-primary); font-weight: 700; }
 .outline-btn { background: transparent; color: var(--primary-color); border: 1px solid var(--primary-color); }
 .outline-btn:hover { background: rgba(56, 189, 248, 0.1); }
 
 .feature-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 15px 0; }
-.feature-hint { font-size: 0.85rem; color: var(--text-muted); text-align: center; margin-top: 8px; }
+.feature-hint { font-size: 0.85rem; color: var(--text-main); opacity: 0.8; text-align: center; margin-top: 8px; }
 .locked-hint { color: #facc15; }
 .status-message { text-align: center; margin-top: 10px; font-weight: 500; color: var(--secondary-color); font-size: 0.95rem; }
 .status-message.error { color: #ef4444; }
@@ -611,10 +679,82 @@ const updateAttendeeStatus = async (userId, status) => {
 .clickable-username { color: var(--primary-color); text-decoration: none; cursor: pointer; font-size: 1.1rem; }
 .clickable-username:hover { text-decoration: underline; }
 .att-email { color: var(--text-muted); font-size: 0.9rem; }
-.btn-icon { width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer; display: inline-flex; justify-content: center; align-items: center; color: white; margin-left: 8px; font-size: 1.2rem; }
+.btn-icon { width: 36px; height: 36px; border-radius: 50%; border: none; cursor: pointer; display: inline-flex; justify-content: center; align-items: center; color: var(--text-main); margin-left: 8px; font-size: 1.2rem; }
 .approve-btn { background: rgba(52, 211, 153, 0.2); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
-.approve-btn:hover { background: #34d399; color: #000; }
+.approve-btn:hover { background: #34d399; color: var(--btn-text-on-primary); }
 .reject-btn { background: rgba(239, 68, 68, 0.2); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
-.reject-btn:hover { background: #ef4444; color: #fff; }
+.reject-btn:hover { background: #ef4444; color: var(--btn-text-on-primary); }
 .empty-state { color: var(--text-muted); font-style: italic; }
+/* --- Memory Board --- */
+.section-header-flex { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.memories-masonry { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.memory-card { border-radius: 12px; overflow: hidden; position: relative; aspect-ratio: 1; }
+.memory-img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s ease; }
+.memory-card:hover .memory-img { transform: scale(1.05); }
+.memory-info { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.7), transparent); padding: 8px; font-size: 0.7rem; color: #ffffff; }
+
+.empty-memories { padding: 40px; text-align: center; color: var(--text-muted); border-radius: 16px; }
+
+.btn-sm { padding: 6px 14px; font-size: 0.8rem; border-radius: 8px; cursor: pointer; border: none; background: var(--primary-color); color: var(--btn-text-on-primary); font-weight: 700; }
+.btn-outline { background: transparent; color: var(--primary-color); border: 1px solid var(--primary-color); }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+.modal-content { max-width: 400px; width: 90%; padding: 2rem; border-radius: 20px; text-align: center; position: relative; }
+.modal-content h3 { margin-bottom: 1rem; }
+.file-input { width: 100%; margin: 1.5rem 0; color: var(--text-main); }
+.upload-status { font-size: 0.8rem; color: var(--primary-color); margin-bottom: 1rem; }
+.error-text { color: #ef4444; font-size: 0.8rem; margin-bottom: 1rem; }
+
+@media (max-width: 768px) {
+  .memories-masonry { grid-template-columns: repeat(2, 1fr); }
+}
+/* Ticket Modal */
+.ticket-modal {
+  text-align: center;
+  max-width: 400px;
+  position: relative;
+}
+.modal-header {
+  margin-bottom: 1.5rem;
+}
+.close-btn {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.8rem;
+  cursor: pointer;
+  line-height: 1;
+  z-index: 10;
+}
+.ticket-info {
+  margin-bottom: 2rem;
+  color: var(--text-muted);
+}
+.qr-container {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  display: inline-block;
+  margin-bottom: 2rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+.event-mini-info {
+  margin-bottom: 2rem;
+}
+.event-mini-info h4 {
+  margin-bottom: 0.5rem;
+}
+.event-mini-info p {
+  color: var(--primary-color);
+  font-weight: 600;
+}
+.qr-error {
+  color: #ef4444;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 1rem;
+}
 </style>

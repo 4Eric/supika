@@ -4,16 +4,18 @@
     "version": "0.0.0",
     "type": "module",
     "scripts": {
-        "dev": "vite",
+        "dev": "vite --host",
         "build": "vite build",
         "preview": "vite preview"
     },
     "dependencies": {
         "@vuepic/vue-datepicker": "^12.1.0",
         "axios": "^1.6.0",
+        "html5-qrcode": "^2.3.8",
         "leaflet": "^1.9.4",
         "leaflet.markercluster": "^1.5.3",
         "pinia": "^2.1.0",
+        "qrcode.vue": "^3.8.0",
         "vue": "^3.3.4",
         "vue-router": "^4.2.5",
         "vue3-emoji-picker": "^1.1.8"

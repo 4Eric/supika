@@ -39,8 +39,10 @@ const upload = multer({
 });
 
 const auth = require('../utils/auth');
+const optionalAuth = require('../utils/optionalAuth');
 const { eventsWriteLimiter } = require('../middlewares/rateLimiter');
 const { eventValidation } = require('../middlewares/validator');
+const { isEventHost } = require('../middlewares/accessControl');
 
 const eventController = require('../controllers/eventController');
 
@@ -60,7 +62,7 @@ router.get('/:id', eventController.getEventById);
 router.post('/', [auth, eventsWriteLimiter, upload.array('media', 10), eventValidation], eventController.createEvent);
 
 // Update an existing event (Creator Only)
-router.put('/:id', [auth, eventsWriteLimiter, upload.array('media', 10), eventValidation], eventController.updateEvent);
+router.put('/:id', [auth, isEventHost, eventsWriteLimiter, upload.array('media', 10), eventValidation], eventController.updateEvent);
 
 // Register for event
 router.post('/:id/register', auth, eventController.registerForEvent);
@@ -69,12 +71,16 @@ router.post('/:id/register', auth, eventController.registerForEvent);
 router.delete('/:id/register', auth, eventController.deregisterFromEvent);
 
 // Get attendees for an event (creator only)
-router.get('/:id/attendees', auth, eventController.getAttendees);
+router.get('/:id/attendees', [auth, isEventHost], eventController.getAttendees);
 
 // Update attendee status (creator only)
-router.put('/:id/attendees/:userId', auth, eventController.updateAttendeeStatus);
+router.put('/:id/attendees/:userId', [auth, isEventHost], eventController.updateAttendeeStatus);
 
 // Delete event (creator only)
-router.delete('/:id', auth, eventController.deleteEvent);
+router.delete('/:id', [auth, isEventHost], eventController.deleteEvent);
+
+// Memory Board
+router.get('/:id/memories', eventController.getEventMemories);
+router.post('/:id/memories', [auth, upload.array('media', 1)], eventController.addEventMemory);
 
 module.exports = router;

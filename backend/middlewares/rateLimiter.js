@@ -2,7 +2,7 @@ const rateLimit = require('express-rate-limit');
 const { error } = require('../utils/response');
 
 const createLimiter = (options) => {
-    if (process.env.NODE_ENV === 'test') {
+    if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV !== 'production') {
         return (req, res, next) => next();
     }
     return rateLimit({

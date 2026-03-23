@@ -41,26 +41,24 @@ const defaultWhitelist = [
 const fullWhitelist = [...allowedOrigins, ...defaultWhitelist];
 
 app.use(cors({
-    origin: function (origin, callback) {
-        // Skip check for tools or same-origin
+    origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
-
-        const isAllowed = fullWhitelist.includes(origin) ||
-            fullWhitelist.includes(origin + '/') || // match trailing slash
-            origin.endsWith('.onrender.com') ||
-            origin.endsWith('.vercel.app') ||
-            /^https?:\/\/192\.168\.\d+\.\d+:\d+$/.test(origin); // local network
-
-        if (isAllowed) {
+        if (fullWhitelist.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
             callback(null, true);
         } else {
-            logger.warn({ origin }, '🚨 CORS BLOCKED');
             callback(new Error('Not allowed by CORS'));
         }
     },
     credentials: true
 }));
-app.use(express.json());
+app.use((req, res, next) => {
+    if (req.originalUrl === '/api/payments/webhook') {
+        next();
+    } else {
+        express.json()(req, res, next);
+    }
+});
 
 // Health Check (for heartbeats)
 app.get('/health', (req, res) => res.status(200).send('OK'));
@@ -74,6 +72,8 @@ app.use('/api/events', require('./routes/events'));
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/ai', require('./routes/ai'));
+app.use('/api/payments', require('./routes/payments'));
+app.use('/api/v1/events', require('./routes/checkin'));
 
 // Global Error Handler (must be after all routes)
 app.use(errorHandler);

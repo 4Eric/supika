@@ -135,9 +135,9 @@ const handleSubmit = async () => {
   border: 1px solid var(--border-light);
   border-radius: 1.5rem;
   padding: 2.5rem;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  box-shadow: var(--card-shadow);
+  backdrop-filter: var(--card-blur);
+  -webkit-backdrop-filter: var(--card-blur);
 }
 
 .auth-header {
@@ -162,7 +162,7 @@ const handleSubmit = async () => {
 /* Tabs */
 .auth-tabs {
   display: flex;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--input-bg);
   border-radius: 0.75rem;
   padding: 0.25rem;
   margin-bottom: 2rem;
@@ -185,13 +185,13 @@ const handleSubmit = async () => {
 
 .tab.active {
   background: var(--primary-color);
-  color: white;
+  color: var(--btn-text-on-primary);
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.3);
 }
 
 .tab:hover:not(.active) {
-  color: white;
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+  background: var(--border-light);
 }
 
 /* Form */
@@ -217,7 +217,7 @@ const handleSubmit = async () => {
 .form-group input {
   width: 100%;
   padding: 0.8rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--input-bg);
   border: 1px solid var(--border-light);
   border-radius: 0.75rem;
   color: var(--text-main);
@@ -229,13 +229,14 @@ const handleSubmit = async () => {
 }
 
 .form-group input::placeholder {
-  color: rgba(255, 255, 255, 0.25);
+  color: var(--text-muted);
+  opacity: 0.5;
 }
 
 .form-group input:focus {
   border-color: var(--primary-color);
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--input-focus-bg);
 }
 
 /* Error */
@@ -273,8 +274,8 @@ const handleSubmit = async () => {
 .spinner {
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top: 2px solid white;
+  border: 2px solid var(--border-light);
+  border-top: 2px solid var(--primary-color);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
