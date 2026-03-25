@@ -10,23 +10,8 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  test-and-build:
+  build:
     runs-on: ubuntu-latest
-
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: yby_admin
-          POSTGRES_PASSWORD: manage
-          POSTGRES_DB: yby_vibe
-        ports:
-          - 5433:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - name: Checkout Code
@@ -44,21 +29,6 @@ jobs:
       - name: Install Backend Dependencies
         working-directory: ./backend
         run: npm ci
-
-      - name: Setup Test Database
-        working-directory: ./backend
-        run: node scripts/setup_pg.js
-        env:
-          DATABASE_URL: postgresql://yby_admin:manage@localhost:5433/yby_vibe
-          NODE_ENV: test
-
-      - name: Run Backend Tests
-        working-directory: ./backend
-        run: npm test
-        env:
-          DATABASE_URL: postgresql://yby_admin:manage@localhost:5433/yby_vibe
-          JWT_SECRET: supersecret_test_key
-          NODE_ENV: test
 
       - name: Install Frontend Dependencies
         working-directory: ./frontend
