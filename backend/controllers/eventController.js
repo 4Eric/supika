@@ -363,14 +363,14 @@ const registerForEvent = async (req, res) => {
             const regRes = await pool.query(`
                 UPDATE "Registrations" SET status = $1, rsvp_status = $2
                 WHERE user_id = $3 AND time_slot_id = $4
-                RETURNING status, id
+                RETURNING status, id, ticket_token, rsvp_status
             `, [event.requires_approval ? 'pending' : 'approved', finalRsvpStatus, req.user.id, slotId]);
             currentStatus = regRes.rows[0].status;
         } else {
             const regRes = await pool.query(`
                 INSERT INTO "Registrations" (user_id, event_id, time_slot_id, status, rsvp_status) 
                 VALUES ($1, $2, $3, $4, $5)
-                RETURNING status, id
+                RETURNING status, id, ticket_token, rsvp_status
             `, [req.user.id, event.id, slotId, event.requires_approval ? 'pending' : 'approved', finalRsvpStatus]);
             currentStatus = regRes.rows[0].status;
         }
