@@ -12,6 +12,39 @@ const { registerValidation, loginValidation } = require('../middlewares/validato
 
 // Middleware to protect routes
 const auth = require('../utils/auth');
+const multer = require('multer');
+const path = require('path');
+const { v2: cloudinary } = require('cloudinary');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+// Avatar Storage Configuration
+let storage;
+if (process.env.USE_LOCAL_STORAGE === 'true') {
+    storage = multer.diskStorage({
+        destination: (req, file, cb) => {
+            cb(null, path.join(__dirname, '../uploads/'));
+        },
+        filename: (req, file, cb) => {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            cb(null, 'avatar-' + uniqueSuffix + path.extname(file.originalname));
+        }
+    });
+} else {
+    cloudinary.config();
+    storage = new CloudinaryStorage({
+        cloudinary: cloudinary,
+        params: {
+            folder: 'supika-avatars',
+            allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+            transformation: [{ width: 250, height: 250, crop: 'fill', gravity: 'face' }],
+        },
+    });
+}
+const upload = multer({
+    storage: storage,
+    limits: { fileSize: 2 * 1024 * 1024 }, // 2MB max for avatars
+});
+
 const adminOnly = (req, res, next) => {
     if (req.user && req.user.role === 'admin') {
         next();
@@ -23,7 +56,7 @@ const adminOnly = (req, res, next) => {
 const authController = require('../controllers/authController');
 
 // Register
-router.post('/register', registerLimiter, registerValidation, authController.register);
+router.post('/register', [registerLimiter, upload.single('avatar'), registerValidation], authController.register);
 
 // Login
 router.post('/login', loginLimiter, loginValidation, authController.login);
@@ -31,8 +64,11 @@ router.post('/login', loginLimiter, loginValidation, authController.login);
 // Get Current User Profile
 router.get('/me', auth, authController.getCurrentUser);
 
+// Get Public User Profile (Host Profile)
+router.get('/users/:id/events', authController.getHostEvents);
+
 // Update Current User Profile
-router.put('/me', auth, authController.updateProfile);
+router.put('/me', [auth, upload.single('avatar')], authController.updateProfile);
 
 // Refresh Token
 router.post('/refresh-token', authController.refreshToken);

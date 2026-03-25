@@ -1,82 +1,62 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 require('dotenv').config();
 
-let transporter;
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-const setupTransporter = async () => {
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS && process.env.EMAIL_PASS !== 'your_app_password') {
-        console.log('Using configured Gmail service.');
-        transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
-            }
-        });
-    } else {
-        console.log('No valid email credentials found. Creating Ethereal Test Account...');
-        const testAccount = await nodemailer.createTestAccount();
-        transporter = nodemailer.createTransport({
-            host: 'smtp.ethereal.email',
-            port: 587,
-            secure: false,
-            auth: {
-                user: testAccount.user,
-                pass: testAccount.pass
-            }
-        });
-        console.log(`Ethereal Test Account Created. User: ${testAccount.user}`);
-    }
-};
+const FROM_ADDRESS = process.env.EMAIL_FROM || 'Supika <noreply@supika.vercel.app>';
 
 const sendConfirmationEmail = async (to, eventDetails) => {
-    if (!transporter) await setupTransporter();
-
-    const mailOptions = {
-        from: process.env.EMAIL_USER || 'noreply@supika.com',
-        to: to,
-        subject: `Registration Confirmed: ${eventDetails.title}`,
-        text: `You have successfully registered for ${eventDetails.title}.\nLocation: ${eventDetails.location_name}\nDate: ${new Date(eventDetails.date).toLocaleString()}\n\nSee you there!`
-    };
-
+    if (!process.env.RESEND_API_KEY) {
+        console.log('[Mailer] RESEND_API_KEY not set — skipping confirmation email');
+        return;
+    }
     try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`Confirmation email sent: ${info.messageId}`);
-        const previewUrl = nodemailer.getTestMessageUrl(info);
-        if (previewUrl) console.log(`Preview URL: ${previewUrl}`);
+        const { data, error } = await resend.emails.send({
+            from: FROM_ADDRESS,
+            to,
+            subject: `Registration Confirmed: ${eventDetails.title}`,
+            html: `
+                <h2>You're going to ${eventDetails.title}! 🎉</h2>
+                <p><strong>Location:</strong> ${eventDetails.location_name}</p>
+                <p><strong>Date:</strong> ${new Date(eventDetails.date).toLocaleString()}</p>
+                <br>
+                <p>See you there!</p>
+                <p style="color:#888;font-size:12px;">— The Supika Team</p>
+            `
+        });
+        if (error) throw error;
+        console.log(`[Mailer] Confirmation email sent: ${data.id}`);
     } catch (error) {
-        console.error(`Error sending email to ${to}:`, error);
+        console.error(`[Mailer] Error sending confirmation email to ${to}:`, error);
     }
 };
 
 const sendPasswordResetEmail = async (to, resetToken) => {
-    if (!transporter) await setupTransporter();
-
+    if (!process.env.RESEND_API_KEY) {
+        console.log('[Mailer] RESEND_API_KEY not set — password reset link:', resetToken);
+        return;
+    }
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`;
-    const mailOptions = {
-        from: process.env.EMAIL_USER || 'noreply@supika.com',
-        to: to,
-        subject: 'Password Reset Request',
-        html: `
-            <p>You requested a password reset. Click the link below to reset your password:</p>
-            <a href="${resetUrl}">${resetUrl}</a>
-            <p>If you did not request this, please ignore this email.</p>
-            <p>This link will expire in 1 hour.</p>
-        `
-    };
-
     try {
-        const info = await transporter.sendMail(mailOptions);
-        console.log(`Password reset email sent: ${info.messageId}`);
-        const previewUrl = nodemailer.getTestMessageUrl(info);
-        if (previewUrl) {
-            console.log(`\n-----------------------------------------`);
-            console.log(`| PASSWORD RESET EMAIL (MOCK)          |`);
-            console.log(`| Preview URL: ${previewUrl} `);
-            console.log(`-----------------------------------------\n`);
-        }
+        const { data, error } = await resend.emails.send({
+            from: FROM_ADDRESS,
+            to,
+            subject: 'Reset your Supika password',
+            html: `
+                <h2>Password Reset Request</h2>
+                <p>Click the button below to reset your password. This link expires in <strong>1 hour</strong>.</p>
+                <br>
+                <a href="${resetUrl}" style="background:#38bdf8;color:white;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
+                    Reset Password
+                </a>
+                <br><br>
+                <p style="font-size:12px;color:#888;">If you did not request this, you can safely ignore this email.</p>
+            `
+        });
+        if (error) throw error;
+        console.log(`[Mailer] Password reset email sent: ${data.id}`);
     } catch (error) {
-        console.error(`Error sending reset email to ${to}:`, error);
+        console.error(`[Mailer] Error sending reset email to ${to}:`, error);
     }
 };
 

@@ -28,11 +28,18 @@ const register = async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
         
+        let avatarUrl = null;
+        if (req.file) {
+            avatarUrl = process.env.USE_LOCAL_STORAGE === 'true' ? req.file.filename : req.file.path;
+        } else if (req.body.avatarUrl) {
+            avatarUrl = req.body.avatarUrl;
+        }
+
         let newUserId;
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
-            const result = await client.query('INSERT INTO "Users" (username, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id, username, email, role', [username, email, hashedPassword, assignedRole]);
+            const result = await client.query('INSERT INTO "Users" (username, email, password_hash, role, avatar_url) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, email, role, avatar_url', [username, email, hashedPassword, assignedRole, avatarUrl]);
             newUserId = result.rows[0].id;
             await client.query('COMMIT');
             res.status(201).json({ message: 'Registered', user: mapToCamelCase(result.rows[0]) });
@@ -77,7 +84,7 @@ const login = async (req, res) => {
         res.json({
             token,
             refreshToken,
-            user: mapToCamelCase({ id: user.id, username: user.username, email: user.email, role: user.role })
+            user: mapToCamelCase({ id: user.id, username: user.username, email: user.email, role: user.role, avatar_url: user.avatar_url })
         });
     } catch (error) {
         console.error('Login error:', error);
@@ -91,13 +98,25 @@ const updateProfile = async (req, res) => {
         const pool = await poolPromise;
         const check = await pool.query('SELECT id FROM "Users" WHERE (username = $1 OR email = $2) AND id != $3', [username, email, req.user.id]);
         if (check.rows.length > 0) return res.status(400).json({ message: 'In use' });
+        
+        let avatarUrl = null;
+        if (req.file) {
+            avatarUrl = process.env.USE_LOCAL_STORAGE === 'true' ? req.file.filename : req.file.path;
+        } else if (req.body.avatarUrl) {
+            avatarUrl = req.body.avatarUrl;
+        }
+
         let sql = 'UPDATE "Users" SET username = $1, email = $2', params = [username, email];
+        if (avatarUrl) {
+            sql += `, avatar_url = $${params.length + 1}`;
+            params.push(avatarUrl);
+        }
         if (password && password.trim() !== '') {
             const salt = await bcrypt.genSalt(10);
             const hashed = await bcrypt.hash(password, salt);
-            sql += `, password_hash = $3`; params.push(hashed);
+            sql += `, password_hash = $${params.length + 1}`; params.push(hashed);
         }
-        sql += ` WHERE id = $${params.length + 1} RETURNING id, username, email, role`;
+        sql += ` WHERE id = $${params.length + 1} RETURNING id, username, email, role, avatar_url`;
         params.push(req.user.id);
         const result = await pool.query(sql, params);
         res.json(mapToCamelCase(result.rows[0]));
@@ -200,10 +219,42 @@ const adminDeleteUser = async (req, res) => {
 const getCurrentUser = async (req, res) => {
     try {
         const pool = await poolPromise;
-        const result = await pool.query('SELECT id, username, email, role FROM "Users" WHERE id = $1', [req.user.id]);
+        const result = await pool.query('SELECT id, username, email, role, avatar_url FROM "Users" WHERE id = $1', [req.user.id]);
         if (result.rows.length === 0) return res.status(404).json({ message: 'Not found' });
         res.json(mapToCamelCase(result.rows[0]));
     } catch (error) { console.error(error); res.status(500).json({ message: 'Error' }); }
+};
+
+const getHostEvents = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const pool = await poolPromise;
+        
+        const userRes = await pool.query('SELECT id, username, avatar_url FROM "Users" WHERE id = $1', [id]);
+        if (userRes.rows.length === 0) return res.status(404).json({ message: 'Not found' });
+        const userData = mapToCamelCase(userRes.rows[0]);
+
+        const eventsRes = await pool.query(`
+            SELECT e.*, 
+            (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) AS date,
+            (SELECT COUNT(*) FROM "Registrations" r JOIN "EventTimeSlots" ts ON r.time_slot_id = ts.id WHERE ts.event_id = e.id AND (r.status = 'approved' OR r.status IS NULL)) AS attendee_count
+            FROM "Events" e
+            JOIN "EventHosts" eh ON e.id = eh.event_id
+            WHERE eh.user_id = $1
+            ORDER BY date DESC
+        `, [id]);
+
+        const events = mapToCamelCase(eventsRes.rows);
+        const now = new Date();
+        const upcoming = events.filter(e => new Date(e.date) >= now).reverse(); // soonest first
+        const past = events.filter(e => new Date(e.date) < now);
+
+        res.json({
+            user: userData,
+            upcoming,
+            past
+        });
+    } catch (e) { console.error(e); res.status(500).json({ message: 'Error' }); }
 };
 
 const logout = async (req, res) => {
@@ -218,5 +269,5 @@ const logout = async (req, res) => {
 };
 
 module.exports = {
-    register, login, getCurrentUser, updateProfile, refreshToken, logout, forgotPassword, resetPassword, adminGetUsers, adminUpdateUser, adminDeleteUser
+    register, login, getCurrentUser, updateProfile, refreshToken, logout, forgotPassword, resetPassword, adminGetUsers, adminUpdateUser, adminDeleteUser, getHostEvents
 };

@@ -230,6 +230,10 @@ const formatLocation = (loc) => {
 const goToEvent = (id) => {
   router.push(`/event/${id}`)
 }
+
+const goToHost = (id) => {
+  router.push(`/host/${id}`)
+}
 </script>
 
 <template>
@@ -326,8 +330,11 @@ const goToEvent = (id) => {
             </span>
             <span class="meta-item">📅 {{ new Date(event.date).toLocaleDateString() }}</span>
           </div>
-          <div class="card-author" @click.stop="router.push(`/host/${event.createdBy}`)">
-            <div class="author-avatar">{{ (event.creatorName || 'U').charAt(0).toUpperCase() }}</div>
+          <div class="card-author" @click.stop="goToHost(event.createdBy)">
+            <div class="author-avatar">
+              <img v-if="event.creatorAvatar" :src="getImageUrl(event.creatorAvatar)" :alt="event.creatorName" />
+              <div v-else class="author-avatar-placeholder">{{ (event.creatorName || 'U').charAt(0).toUpperCase() }}</div>
+            </div>
             <span class="author-name">{{ event.creatorName || 'Organizer' }}</span>
           </div>
         </div>
@@ -576,14 +583,23 @@ const goToEvent = (id) => {
   width: 20px;
   height: 20px;
   border-radius: 50%;
+  overflow: hidden;
   background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.author-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.author-avatar-placeholder {
   font-size: 0.6rem;
   font-weight: 700;
   color: var(--btn-text-on-primary);
-  flex-shrink: 0;
 }
 .author-name {
   font-size: 0.72rem;

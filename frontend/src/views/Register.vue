@@ -13,6 +13,35 @@ const username = ref('')
 const errorMsg = ref('')
 const loading = ref(false)
 const sessionExpired = ref(false)
+const avatarFile = ref(null)
+const avatarPreview = ref(null)
+const selectedPresetUrl = ref(null)
+
+const presetAvatars = [
+  'https://api.dicebear.com/7.x/lorelei/svg?seed=Felix&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/7.x/lorelei/svg?seed=Aneka&backgroundColor=c0aede',
+  'https://api.dicebear.com/7.x/lorelei/svg?seed=Mimi&backgroundColor=ffd5dc',
+  'https://api.dicebear.com/7.x/bottts/svg?seed=Zoe&backgroundColor=ffdfbf',
+  'https://api.dicebear.com/7.x/fun-emoji/svg?seed=Garfield&backgroundColor=d1d4f9',
+  'https://api.dicebear.com/7.x/fun-emoji/svg?seed=Buster&backgroundColor=ffdfbf',
+  'https://api.dicebear.com/7.x/miniavs/svg?seed=Whiskers&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/7.x/miniavs/svg?seed=Mittens&backgroundColor=ffd5dc',
+  // Asian-inspired cute avatars
+  'https://api.dicebear.com/7.x/notionists/svg?seed=Mei&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/7.x/croodles/svg?seed=Kenji&backgroundColor=ffd5dc',
+  'https://api.dicebear.com/7.x/lorelei/svg?seed=Yuki&backgroundColor=c0aede',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=Jin&backgroundColor=d1d4f9',
+  // More male avatars
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=Leo&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=Ryu&backgroundColor=ffdfbf',
+  'https://api.dicebear.com/7.x/micah/svg?seed=Hiro&backgroundColor=d1d4f9',
+  'https://api.dicebear.com/7.x/notionists/svg?seed=Akira&backgroundColor=c0aede',
+  // Even more male avatars
+  'https://api.dicebear.com/7.x/micah/svg?seed=Jack&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/7.x/avataaars/svg?seed=Oliver&backgroundColor=ffd5dc',
+  'https://api.dicebear.com/7.x/notionists/svg?seed=Liam&backgroundColor=c0aede',
+  'https://api.dicebear.com/7.x/adventurer/svg?seed=Ethan&backgroundColor=ffdfbf'
+]
 
 onMounted(() => {
   if (sessionStorage.getItem('session_expired')) {
@@ -26,6 +55,30 @@ onMounted(() => {
 const toggleMode = () => {
   isLoginMode.value = !isLoginMode.value
   errorMsg.value = ''
+  avatarFile.value = null
+  avatarPreview.value = null
+  selectedPresetUrl.value = null
+}
+
+const selectPreset = (url) => {
+  selectedPresetUrl.value = url
+  avatarFile.value = null
+  avatarPreview.value = url
+}
+
+const handleFileChange = (e) => {
+  const file = e.target.files[0]
+  if (file) {
+    if (file.size > 2 * 1024 * 1024) {
+      errorMsg.value = 'Avatar is too large (max 2MB).'
+      return
+    }
+    avatarFile.value = file
+    const reader = new FileReader()
+    reader.onload = (event) => { avatarPreview.value = event.target.result }
+    reader.readAsDataURL(file)
+    selectedPresetUrl.value = null
+  }
 }
 
 const handleSubmit = async () => {
@@ -45,7 +98,7 @@ const handleSubmit = async () => {
         loading.value = false
         return
       }
-      success = await authStore.register(username.value, email.value, password.value)
+      success = await authStore.register(username.value, email.value, password.value, avatarFile.value, selectedPresetUrl.value)
     }
 
     if (success) {
@@ -82,6 +135,34 @@ const handleSubmit = async () => {
       </div>
 
       <form @submit.prevent="handleSubmit" class="auth-form">
+        <!-- Avatar Preview (Register only) -->
+        <div v-if="!isLoginMode" class="avatar-upload-container">
+          <label for="avatar" class="avatar-preview-box">
+            <img v-if="avatarPreview" :src="avatarPreview" class="profile-preview-img" alt="Avatar Preview" />
+            <div v-else class="avatar-placeholder">
+              <span>📸</span>
+            </div>
+            <div class="avatar-hover-label">Pick Avatar</div>
+          </label>
+          <input id="avatar" type="file" @change="handleFileChange" accept="image/*" class="file-input-hidden" />
+          
+          <!-- Presets -->
+          <div class="preset-avatars">
+            <p class="preset-tip">Or choose a preset vibe:</p>
+            <div class="preset-options">
+              <img 
+                v-for="(url, idx) in presetAvatars" 
+                :key="'preset-'+idx"
+                :src="url" 
+                class="preset-item" 
+                :class="{ active: selectedPresetUrl === url }"
+                @click="selectPreset(url)"
+                alt="preset avatar"
+              />
+            </div>
+          </div>
+        </div>
+
         <!-- Username (Register only) -->
         <div v-if="!isLoginMode" class="form-group">
           <label for="username">Username</label>
@@ -195,10 +276,103 @@ const handleSubmit = async () => {
 }
 
 /* Form */
+.preset-avatars {
+  margin-top: 1rem;
+  text-align: center;
+}
+.preset-tip {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+.preset-options {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.preset-item {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: all 0.2s;
+  background: var(--input-bg);
+}
+.preset-item:hover {
+  transform: scale(1.1);
+  border-color: var(--border-light);
+}
+.preset-item.active {
+  border-color: var(--primary-color);
+  transform: scale(1.15);
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.3);
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+}
+
+/* Avatar Upload */
+.avatar-upload-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.avatar-preview-box {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  border: 2px dashed var(--border-light);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--input-bg);
+  transition: all 0.2s;
+}
+.avatar-preview-box:hover {
+  border-color: var(--primary-color);
+  background: var(--input-focus-bg);
+}
+.profile-preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.avatar-placeholder {
+  font-size: 2rem;
+  opacity: 0.5;
+}
+.avatar-hover-label {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  font-size: 0.7rem;
+  padding: 2px 0;
+  text-align: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.avatar-preview-box:hover .avatar-hover-label {
+  opacity: 1;
+}
+.file-input-hidden {
+  display: none;
+}
+.avatar-tip {
+  font-size: 0.75rem;
+  color: var(--text-muted);
 }
 
 .form-group {

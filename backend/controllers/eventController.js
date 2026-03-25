@@ -26,7 +26,7 @@ const getAllEvents = async (req, res) => {
 
         // Fetch a larger set (e.g. 1000) to keep the cache meaningful for pagination/map
         const result = await pool.query(`
-            SELECT e.*, u.username as creator_name,
+            SELECT e.*, u.username as creator_name, u.avatar_url as creator_avatar,
             (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) AS date,
             (SELECT COUNT(*) FROM "Registrations" r JOIN "EventTimeSlots" ts ON r.time_slot_id = ts.id WHERE ts.event_id = e.id AND (r.status = 'approved' OR r.status IS NULL)) AS attendee_count
             FROM "Events" e 
@@ -97,9 +97,11 @@ const getEventById = async (req, res) => {
 
         const pool = await poolPromise;
         const result = await pool.query(`
-            SELECT e.*, u.username as creator_name 
+            SELECT e.*, u.username as creator_name, u.avatar_url as creator_avatar,
+            o.name as organization_name, o.logo_url as organization_logo
             FROM "Events" e 
             LEFT JOIN "Users" u ON e.created_by = u.id 
+            LEFT JOIN "Organizations" o ON e.organization_id = o.id
             WHERE e.id = $1
         `, [req.params.id]);
 
@@ -123,6 +125,26 @@ const getEventById = async (req, res) => {
         `, [event.id]);
 
         event.media = mediaResult.rows;
+
+        // Fetch Hosts
+        const hostsResult = await pool.query(`
+            SELECT u.id, u.username, u.avatar_url
+            FROM "Users" u
+            JOIN "EventHosts" eh ON u.id = eh.user_id
+            WHERE eh.event_id = $1
+        `, [event.id]);
+        event.hosts = hostsResult.rows;
+
+        // Fetch Attendees (Public profile info)
+        const attendeesResult = await pool.query(`
+            SELECT u.id, u.username, u.avatar_url, r.status, r.rsvp_status
+            FROM "Registrations" r
+            JOIN "Users" u ON r.user_id = u.id
+            WHERE r.event_id = $1 AND (r.status = 'approved' OR r.status IS NULL)
+            ORDER BY r.registration_date ASC
+        `, [event.id]);
+        event.attendees = attendeesResult.rows;
+
         const mapped = mapToCamelCase(event);
 
         // Cache for 30 seconds
@@ -216,16 +238,29 @@ const createEvent = async (req, res) => {
     try {
         await client.query('BEGIN');
         const primaryImage = getPrimaryImage(req.files);
+        const { organizationId, hostIds } = req.body;
+        
         const result = await client.query(`
-            INSERT INTO "Events" (title, description, location_name, latitude, longitude, created_by, image_url, requires_approval, ticket_price, currency)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *
+            INSERT INTO "Events" (title, description, location_name, latitude, longitude, created_by, image_url, requires_approval, ticket_price, currency, organization_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *
         `, [
             data.title || null, data.description || null, data.locationName || null,
             data.latitude, data.longitude, req.user.id,
             primaryImage, data.requiresApproval,
-            data.ticketPrice, data.currency
+            data.ticketPrice, data.currency, organizationId || null
         ]);
         const eventId = result.rows[0].id;
+
+        // Insert Hosts (ensure creator is included)
+        let hosts = [req.user.id];
+        if (hostIds) {
+            const extraHosts = Array.isArray(hostIds) ? hostIds : hostIds.split(',').map(id => parseInt(id.trim()));
+            hosts = [...new Set([...hosts, ...extraHosts])];
+        }
+        for (const uid of hosts) {
+            await client.query('INSERT INTO "EventHosts" (event_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [eventId, uid]);
+        }
+
         await insertTimeSlots(client, eventId, data.timeSlots, data.date);
         await insertEventMedia(client, eventId, req.files);
         await client.query('COMMIT');
@@ -305,8 +340,10 @@ const registerForEvent = async (req, res) => {
         // Authentication required — guests can no longer register
         if (!req.user) return res.status(401).json({ message: 'Login required to register for events' });
 
-        const { timeSlotId, time_slot_id: timeSlotIdSnake } = req.body;
+        const { timeSlotId, time_slot_id: timeSlotIdSnake, rsvpStatus } = req.body;
         const slotIdToUse = timeSlotId || timeSlotIdSnake;
+        const finalRsvpStatus = rsvpStatus || 'going';
+
         const pool = await poolPromise;
         const eventRes = await pool.query('SELECT * FROM "Events" WHERE id = $1', [req.params.id]);
         if (eventRes.rows.length === 0) return res.status(404).json({ message: 'Not found' });
@@ -324,17 +361,17 @@ const registerForEvent = async (req, res) => {
         let currentStatus;
         if (existingReg.rows.length > 0) {
             const regRes = await pool.query(`
-                UPDATE "Registrations" SET status = $1 
-                WHERE user_id = $2 AND time_slot_id = $3
+                UPDATE "Registrations" SET status = $1, rsvp_status = $2
+                WHERE user_id = $3 AND time_slot_id = $4
                 RETURNING status, id
-            `, [event.requires_approval ? 'pending' : 'approved', req.user.id, slotId]);
+            `, [event.requires_approval ? 'pending' : 'approved', finalRsvpStatus, req.user.id, slotId]);
             currentStatus = regRes.rows[0].status;
         } else {
             const regRes = await pool.query(`
-                INSERT INTO "Registrations" (user_id, event_id, time_slot_id, status) 
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO "Registrations" (user_id, event_id, time_slot_id, status, rsvp_status) 
+                VALUES ($1, $2, $3, $4, $5)
                 RETURNING status, id
-            `, [req.user.id, event.id, slotId, event.requires_approval ? 'pending' : 'approved']);
+            `, [req.user.id, event.id, slotId, event.requires_approval ? 'pending' : 'approved', finalRsvpStatus]);
             currentStatus = regRes.rows[0].status;
         }
 

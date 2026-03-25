@@ -1,84 +1,58 @@
 <script setup>
-import { API_URL } from '@/config/api'
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { API_URL } from '@/config/api'
 import axios from 'axios'
-import { getImageUrl } from '@/utils/imageUrl'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const router = useRouter()
-const hostId = route.params.id
+const authStore = useAuthStore()
 
-const publicInfo = ref(null)
+const host = ref(null)
 const upcomingEvents = ref([])
 const pastEvents = ref([])
 const loading = ref(true)
-const followLoading = ref(false)
-const authStore = useAuthStore()
+const error = ref(null)
+const activeTab = ref('upcoming')
 
-const fetchHostData = async () => {
+const fetchHostProfile = async () => {
   try {
-    // Fetch Profile
-    const profileRes = await axios.get(`${API_URL}/api/users/${hostId}/public`, {
-      headers: authStore.isAuthenticated ? { 'x-auth-token': authStore.token } : {}
-    })
-    publicInfo.value = profileRes.data
-
-    // Fetch Events (Upcoming)
-    const upcomingRes = await axios.get(`${API_URL}/api/users/${hostId}/events?time_filter=upcoming`)
-    upcomingEvents.value = upcomingRes.data
-
-    // Fetch Events (Past)
-    const pastRes = await axios.get(`${API_URL}/api/users/${hostId}/events?time_filter=past`)
-    pastEvents.value = pastRes.data
+    loading.value = true
+    const res = await axios.get(`${API_URL}/api/auth/users/${route.params.id}/events`)
+    host.value = res.data.user
+    upcomingEvents.value = res.data.upcoming
+    pastEvents.value = res.data.past
+    
+    if (upcomingEvents.value.length === 0 && pastEvents.value.length > 0) {
+      activeTab.value = 'past'
+    }
   } catch (err) {
-    console.error('Failed to load host data:', err)
+    console.error('Failed to fetch host profile', err)
+    error.value = 'Host profile not found.'
   } finally {
     loading.value = false
   }
 }
 
-const toggleFollow = async () => {
-  if (!authStore.isAuthenticated) {
-    router.push('/login')
-    return
-  }
-  
-  try {
-    followLoading.value = true
-    if (publicInfo.value.isFollowing) {
-      await axios.delete(`${API_URL}/api/users/${hostId}/unfollow`, {
-        headers: { 'x-auth-token': authStore.token }
-      })
-      publicInfo.value.isFollowing = false
-      publicInfo.value.followersCount = Math.max(0, (publicInfo.value.followersCount || 0) - 1)
-    } else {
-      await axios.post(`${API_URL}/api/users/${hostId}/follow`, {}, {
-        headers: { 'x-auth-token': authStore.token }
-      })
-      publicInfo.value.isFollowing = true
-      publicInfo.value.followersCount = (publicInfo.value.followersCount || 0) + 1
-    }
-  } catch (err) {
-    console.error('Failed to toggle follow:', err)
-  } finally {
-    followLoading.value = false
-  }
+const getAvatarUrl = (url) => {
+  if (!url) return null
+  if (url.startsWith('http')) return url
+  return `${API_URL}/uploads/${url}`
 }
 
-onMounted(fetchHostData)
-
-const formatLocation = (loc) => {
-  if (!loc) return ''
-  const parts = loc.split(',').map(p => p.trim())
-  if (parts.length <= 2) return loc
-  const isZip = (str) => /\d/.test(str) && str.length <= 10
-  let stateIdx = parts.length - 2
-  if (isZip(parts[stateIdx])) stateIdx--
-  const cityIdx = stateIdx - 1
-  if (cityIdx >= 0) return `${parts[cityIdx]}, ${parts[stateIdx]}`
-  return parts.slice(0, 2).join(', ')
+const formatEventDate = (dateStr) => {
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('en-US', { 
+    weekday: 'short', 
+    month: 'short', 
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  })
 }
+
+onMounted(fetchHostProfile)
 
 const goToEvent = (id) => {
   router.push(`/event/${id}`)
@@ -86,345 +60,375 @@ const goToEvent = (id) => {
 </script>
 
 <template>
-  <div class="profile-container" v-if="publicInfo">
-    <!-- Cinematic Header -->
-    <div class="profile-hero">
-      <div class="hero-blur" :style="{ backgroundImage: `url(${getImageUrl(publicInfo.avatarUrl)})` }"></div>
-      <div class="hero-overlay"></div>
-      
-      <div class="hero-content">
-        <div class="avatar-wrapper">
-          <div class="main-avatar">
-            {{ publicInfo.username ? publicInfo.username.charAt(0).toUpperCase() : 'U' }}
-          </div>
-          <div class="verified-badge" v-if="publicInfo.eventsHostedCount > 5">✨</div>
-        </div>
-        
-        <h1 class="host-name">{{ publicInfo.username }}</h1>
-        <span class="role-pill">Event Organizer</span>
-
-        <button 
-          v-if="!authStore.user || authStore.user.id != hostId"
-          class="btn follow-btn" 
-          :class="{'following': publicInfo.isFollowing}"
-          @click="toggleFollow"
-          :disabled="followLoading"
-        >
-          {{ publicInfo.isFollowing ? 'Following' : 'Follow Host' }}
-        </button>
-
-        <div class="stats-grid">
-          <div class="stat-card">
-            <span class="stat-value">{{ publicInfo.eventsHostedCount }}</span>
-            <span class="stat-label">Events</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-value">{{ publicInfo.followersCount || 0 }}</span>
-            <span class="stat-label">Followers</span>
-          </div>
-          <div class="stat-card">
-            <span class="stat-value">{{ publicInfo.followingCount || 0 }}</span>
-            <span class="stat-label">Following</span>
-          </div>
-        </div>
-      </div>
+  <div class="host-profile-page">
+    <div v-if="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Loading profile...</p>
     </div>
 
-    <!-- Content Sections -->
-    <div class="profile-body">
-      
-      <!-- Upcoming -->
-      <section class="events-section">
-        <h2 class="section-title">Upcoming Vibe</h2>
-        <div v-if="upcomingEvents.length === 0" class="empty-state">
-          <p>No upcoming events scheduled yet. Check back soon!</p>
+    <div v-else-if="error" class="error-state">
+      <span class="error-icon">📭</span>
+      <h2>{{ error }}</h2>
+      <button @click="router.push('/')" class="btn btn-primary">Go Home</button>
+    </div>
+
+    <div v-else class="profile-container">
+      <!-- Header Section -->
+      <section class="profile-header card">
+        <div class="profile-main-info">
+          <div class="profile-avatar">
+            <img v-if="host.avatarUrl" :src="getAvatarUrl(host.avatarUrl)" :alt="host.username" />
+            <div v-else class="avatar-placeholder">{{ host.username.charAt(0).toUpperCase() }}</div>
+          </div>
+          <div class="profile-name-area">
+            <h1>{{ host.username }}</h1>
+            <p class="host-badge">✨ Event Host</p>
+          </div>
         </div>
-        <div class="masonry-grid" v-else>
-          <div
-            class="masonry-card"
-            v-for="event in upcomingEvents"
-            :key="event.id"
-            @click="goToEvent(event.id)"
-          >
-            <div class="card-image-wrapper">
-              <img :src="getImageUrl(event.imageUrl)" :alt="event.title" class="card-image" loading="lazy" />
-              <span v-if="!event.requiresApproval" class="auto-badge">⚡ Instant</span>
-            </div>
-            <div class="card-body">
-              <h3 class="card-title">{{ event.title }}</h3>
-              <div class="card-meta">
-                <span class="meta-item">📍 {{ formatLocation(event.locationName) }}</span>
-                <span class="meta-item">📅 {{ new Date(event.date).toLocaleDateString() }}</span>
-              </div>
-            </div>
+        
+        <div class="profile-stats">
+          <div class="stat-item">
+            <span class="stat-value">{{ upcomingEvents.length }}</span>
+            <span class="stat-label">Upcoming</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-value">{{ pastEvents.length }}</span>
+            <span class="stat-label">Past Hosted</span>
           </div>
         </div>
       </section>
 
-      <!-- Legacy -->
-      <section class="events-section legacy" v-if="pastEvents.length > 0">
-        <h2 class="section-title">Legacy</h2>
-        <div class="masonry-grid">
-          <div
-            class="masonry-card is-past"
-            v-for="event in pastEvents"
-            :key="event.id"
-            @click="goToEvent(event.id)"
+      <!-- Events Feed Section -->
+      <section class="events-feed">
+        <div class="feed-tabs">
+          <button 
+            class="tab-btn" 
+            :class="{ active: activeTab === 'upcoming' }"
+            @click="activeTab = 'upcoming'"
           >
-            <div class="card-image-wrapper">
-              <img :src="getImageUrl(event.imageUrl)" :alt="event.title" class="card-image" loading="lazy" />
-            </div>
-            <div class="card-body">
-              <h3 class="card-title">{{ event.title }}</h3>
-              <div class="card-meta">
-                <span class="meta-item">📍 {{ formatLocation(event.locationName) }}</span>
-                <span class="meta-item">📅 {{ new Date(event.date).toLocaleDateString() }}</span>
+            Upcoming ({{ upcomingEvents.length }})
+          </button>
+          <button 
+            class="tab-btn" 
+            :class="{ active: activeTab === 'past' }"
+            @click="activeTab = 'past'"
+          >
+            Past Events ({{ pastEvents.length }})
+          </button>
+        </div>
+
+        <div class="tab-content">
+          <TransitionGroup name="list" tag="div" class="event-grid">
+            <div 
+              v-for="event in (activeTab === 'upcoming' ? upcomingEvents : pastEvents)" 
+              :key="event.id"
+              class="event-card card"
+              @click="goToEvent(event.id)"
+            >
+              <div class="event-image-container">
+                <img :src="getAvatarUrl(event.imageUrl)" :alt="event.title" class="event-image" />
+                <div v-if="activeTab === 'past'" class="past-overlay">Past</div>
+              </div>
+              <div class="event-info">
+                <p class="event-date">{{ formatEventDate(event.date) }}</p>
+                <h3 class="event-title">{{ event.title }}</h3>
+                <p class="event-location">{{ event.locationName }}</p>
+                <div class="event-footer">
+                  <span class="attendee-count">👥 {{ event.attendeeCount }} vibing</span>
+                  <span v-if="event.ticketPrice > 0" class="price-tag">${{ event.ticketPrice }}</span>
+                  <span v-else class="free-badge">Free</span>
+                </div>
               </div>
             </div>
+          </TransitionGroup>
+
+          <div v-if="(activeTab === 'upcoming' ? upcomingEvents : pastEvents).length === 0" class="empty-feed">
+            <span class="empty-icon">🏜️</span>
+            <p>No {{ activeTab }} events found for this host.</p>
           </div>
         </div>
       </section>
-
     </div>
   </div>
 </template>
 
 <style scoped>
+.host-profile-page {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+
 .profile-container {
-  min-height: 100vh;
-  background: var(--bg-color);
-  color: var(--text-main);
-  padding-bottom: 5rem;
-}
-
-/* --- Hero Section --- */
-.profile-hero {
-  position: relative;
-  height: 450px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-
-.hero-blur {
-  position: absolute;
-  top: -50px; left: -50px; right: -50px; bottom: -50px;
-  background-size: cover;
-  background-position: center;
-  filter: blur(40px) brightness(0.4);
-  z-index: 1;
-}
-
-.hero-overlay {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(to bottom, transparent 0%, var(--bg-color) 95%);
-  z-index: 2;
-}
-
-.hero-content {
-  position: relative;
-  z-index: 3;
   display: flex;
   flex-direction: column;
+  gap: 2rem;
+}
+
+/* Header UI */
+.profile-header {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  text-align: center;
-  padding-top: 2rem;
+  padding: 3rem;
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+  border-color: var(--primary-color);
 }
 
-.avatar-wrapper {
-  position: relative;
-  margin-bottom: 1.5rem;
+.profile-main-info {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
 }
 
-.main-avatar {
+.profile-avatar {
   width: 120px;
   height: 120px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  overflow: hidden;
+  border: 4px solid var(--primary-color);
+  box-shadow: 0 0 30px rgba(56, 189, 248, 0.4);
+  background: var(--input-bg);
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
   font-size: 3rem;
   font-weight: 800;
-  color: var(--btn-text-on-primary);
-  box-shadow: 0 0 40px rgba(56, 189, 248, 0.4);
-  border: 4px solid rgba(255, 255, 255, 0.1);
+  color: var(--primary-color);
 }
 
-.verified-badge {
-  position: absolute;
-  bottom: 5px;
-  right: 5px;
-  background: white;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-}
-
-.host-name {
-  font-size: 2.2rem;
-  font-weight: 800;
-  margin-bottom: 0.5rem;
+.profile-name-area h1 {
+  font-size: 2.5rem;
+  margin: 0;
   letter-spacing: -1px;
 }
 
-.role-pill {
-  background: rgba(255,255,255,0.08);
-  padding: 0.4rem 1.2rem;
-  border-radius: 20px;
-  font-size: 0.85rem;
-  font-weight: 600;
+.host-badge {
   color: var(--primary-color);
-  border: 1px solid rgba(56, 189, 248, 0.2);
-  margin-bottom: 2rem;
+  font-weight: 600;
+  font-size: 1rem;
+  margin-top: 0.25rem;
 }
 
-.follow-btn {
-  margin-bottom: 2rem;
-  padding: 0.6rem 2rem;
-  border-radius: 2rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-  color: white;
-  border: none;
-  box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4);
-  transition: all 0.2s ease;
-}
-.follow-btn.following {
-  background: rgba(255,255,255,0.1);
-  color: var(--text-main);
-  border: 1px solid rgba(255,255,255,0.2);
-  box-shadow: none;
-}
-.follow-btn:hover {
-  transform: translateY(-2px);
-}
-
-.stats-grid {
+.profile-stats {
   display: flex;
-  gap: 1.5rem;
+  gap: 2rem;
 }
 
-.stat-card {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(10px);
-  padding: 1rem 1.5rem;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.stat-item {
   display: flex;
   flex-direction: column;
-  min-width: 110px;
+  align-items: center;
+  background: rgba(255,255,255,0.05);
+  padding: 1rem 1.5rem;
+  border-radius: 1rem;
+  min-width: 120px;
 }
 
 .stat-value {
-  font-size: 1.4rem;
+  font-size: 1.8rem;
   font-weight: 800;
-  color: white;
+  color: var(--text-main);
 }
 
 .stat-label {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 1px;
-  margin-top: 2px;
 }
 
-/* --- Body --- */
-.profile-body {
-  max-width: 1200px;
-  margin: -2rem auto 0;
-  padding: 0 1.5rem;
+/* Tabs */
+.feed-tabs {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.tab-btn {
+  padding: 0.8rem 1.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--border-light);
+  background: var(--card-bg);
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.tab-btn.active {
+  background: var(--primary-color);
+  color: var(--btn-text-on-primary);
+  border-color: var(--primary-color);
+  box-shadow: 0 5px 15px rgba(56, 189, 248, 0.3);
+}
+
+/* Event Grid */
+.event-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.event-card {
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.event-image-container {
+  height: 160px;
   position: relative;
-  z-index: 4;
+  overflow: hidden;
 }
 
-.events-section {
-  margin-bottom: 4rem;
+.event-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s;
 }
 
-.section-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-bottom: 1.5rem;
+.event-card:hover .event-image {
+  transform: scale(1.05);
+}
+
+.past-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5);
+  color: white;
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.5rem;
+  text-transform: uppercase;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-  background: var(--card-bg);
-  border-radius: 16px;
-  border: 1px dashed rgba(255,255,255,0.1);
+.event-info {
+  padding: 1.25rem;
+}
+
+.event-date {
+  color: var(--primary-color);
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.event-title {
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem 0;
+  color: var(--text-main);
+}
+
+.event-location {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.event-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border-light);
+}
+
+.attendee-count {
+  font-size: 0.85rem;
   color: var(--text-muted);
 }
 
-/* --- Masonry Duplicated from Home (Refactor later) --- */
-.masonry-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 20px;
+.price-tag {
+  color: #10b981;
+  font-weight: 700;
 }
 
-.masonry-card {
-  border-radius: 14px;
-  overflow: hidden;
-  background: var(--card-bg);
-  cursor: pointer;
-  transition: all 0.25s ease;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+.free-badge {
+  color: var(--primary-color);
+  font-weight: 700;
 }
 
-.masonry-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 12px 30px rgba(56, 189, 248, 0.15);
+/* States */
+.loading-state, .error-state, .empty-feed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 5rem 2rem;
+  text-align: center;
 }
 
-.is-past {
-  filter: grayscale(0.8);
-  opacity: 0.6;
+.loading-state .spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--border-light);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
 }
 
-.is-past:hover {
-  filter: grayscale(0.2);
-  opacity: 1;
+.error-icon, .empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
 }
 
-.card-image-wrapper {
-  position: relative;
-  aspect-ratio: 16/10;
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
-.card-image {
-  width: 100%; height: 100%; object-fit: cover;
-}
-
-.auto-badge {
-  position: absolute; top: 10px; right: 10px;
-  background: rgba(52, 211, 153, 0.9);
-  color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.7rem; font-weight: 700;
-}
-
-.card-body { padding: 1rem; }
-.card-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
-.card-meta { display: flex; flex-direction: column; gap: 4px; }
-.meta-item { font-size: 0.8rem; color: var(--text-muted); }
-
+/* Mobile */
 @media (max-width: 768px) {
-  .profile-hero { height: 400px; }
-  .host-name { font-size: 1.8rem; }
-  .stats-grid { gap: 0.75rem; width: 100%; padding: 0 1rem; }
-  .stat-card { flex: 1; min-width: 0; padding: 0.75rem 0.5rem; }
-  .stat-value { font-size: 1.1rem; }
-  .stat-label { font-size: 0.6rem; }
+  .profile-header {
+    flex-direction: column;
+    padding: 2rem;
+    gap: 1.5rem;
+    text-align: center;
+  }
+  
+  .profile-main-info {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .profile-name-area h1 {
+    font-size: 2rem;
+  }
+  
+  .profile-stats {
+    width: 100%;
+    gap: 1rem;
+  }
+  
+  .stat-item {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .event-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.list-enter-active,
+.list-leave-active {
+  transition: all 0.4s ease;
+}
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
 }
 </style>

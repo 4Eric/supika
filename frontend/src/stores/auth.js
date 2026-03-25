@@ -51,14 +51,51 @@ export const useAuthStore = defineStore('auth', {
                 throw error
             }
         },
-        async register(username, email, password) {
+        async register(username, email, password, avatarFile = null, avatarUrl = null) {
             try {
-                await axios.post(`${API_URL}/api/auth/register`, { username, email, password })
+                const formData = new FormData()
+                formData.append('username', username)
+                formData.append('email', email)
+                formData.append('password', password)
+                if (avatarFile) {
+                    formData.append('avatar', avatarFile)
+                } else if (avatarUrl) {
+                    formData.append('avatarUrl', avatarUrl)
+                }
+                
+                await axios.post(`${API_URL}/api/auth/register`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                })
                 return await this.login(email, password)
             } catch (error) {
                 console.error('Registration error', error)
                 const message = error.response?.data?.message || 'Registration failed'
                 throw new Error(message)
+            }
+        },
+        async updateProfile(userData, avatarFile = null, avatarUrl = null) {
+            try {
+                const formData = new FormData()
+                Object.keys(userData).forEach(key => {
+                    if (userData[key] !== undefined && userData[key] !== null) {
+                        formData.append(key, userData[key])
+                    }
+                })
+                if (avatarFile) {
+                    formData.append('avatar', avatarFile)
+                } else if (avatarUrl) {
+                    formData.append('avatarUrl', avatarUrl)
+                }
+
+                const response = await axios.put(`${API_URL}/api/auth/me`, formData, {
+                    headers: { 'Content-Type': 'multipart/form-data' }
+                })
+                
+                this.updateUser(response.data)
+                return response.data
+            } catch (error) {
+                console.error('Profile update failed', error)
+                throw error
             }
         },
         async logout() {

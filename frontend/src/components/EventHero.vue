@@ -49,10 +49,8 @@ const prevSlide = () => {
 
   <div class="body-header">
     <h1 class="event-title">{{ event.title }}</h1>
+    
     <div class="meta-badges">
-      <router-link :to="`/host/${event.createdBy}`" class="badge creator-badge clickable">
-        <span class="badge-icon">👤</span> By {{ event.creatorName || 'unknown' }}
-      </router-link>
       <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" class="badge location-badge">
         <span class="badge-icon">📍</span> {{ event.locationName }}
       </a>
@@ -129,40 +127,8 @@ const prevSlide = () => {
   transform: scale(1.2);
 }
 
-.body-header { margin-bottom: 2rem; }
-.event-title {
-  font-family: 'Outfit', sans-serif;
-  font-size: 2.2rem;
-  font-weight: 800;
-  line-height: 1.2;
-  margin-bottom: 1rem;
-  background: linear-gradient(135deg, var(--text-main), var(--primary-color));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.meta-badges { display: flex; flex-wrap: wrap; gap: 0.8rem; }
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 12px;
-  border-radius: 20px;
-  background: var(--card-bg);
-  border: 1px solid var(--border-light);
-  font-size: 0.85rem;
-  color: var(--text-muted);
-  text-decoration: none;
-}
-.badge.clickable {
-  cursor: pointer;
-  transition: all 0.2s;
-  color: var(--text-main);
-}
-.badge.clickable:hover {
-  background: rgba(56, 189, 248, 0.15);
-  border-color: var(--primary-color);
-  transform: translateY(-1px);
-}
+.body-header { margin-bottom: 1.5rem; }
+
 .badge-icon { margin-right: 4px; }
 
 .location-badge { color: var(--primary-color); transition: all 0.2s; }

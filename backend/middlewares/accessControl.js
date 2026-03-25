@@ -12,13 +12,23 @@ const isEventHost = async (req, res, next) => {
         }
 
         const pool = await poolPromise;
-        const result = await pool.query('SELECT created_by FROM "Events" WHERE id = $1', [eventId]);
+        
+        // Multi-host support: check if user is in EventHosts or is the original created_by or is admin
+        const result = await pool.query(`
+            SELECT e.created_by, EXISTS(SELECT 1 FROM "EventHosts" eh WHERE eh.event_id = e.id AND eh.user_id = $1) as is_cohost
+            FROM "Events" e 
+            WHERE e.id = $2
+        `, [req.user.id, eventId]);
         
         if (result.rows.length === 0) {
             return res.status(404).json({ message: 'Event not found' });
         }
 
-        if (result.rows[0].created_by != req.user.id && req.user.role !== 'admin') {
+        const isOwner = result.rows[0].created_by == req.user.id;
+        const isCohost = result.rows[0].is_cohost;
+        const isAdmin = req.user.role === 'admin';
+
+        if (!isOwner && !isCohost && !isAdmin) {
             return res.status(403).json({ message: 'Unauthorized' });
         }
 

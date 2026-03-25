@@ -100,6 +100,12 @@ const onScanFailure = (error) => {
   // Silent-ish to avoid console noise
 }
 
+const getAvatarUrl = (url) => {
+  if (!url) return null
+  if (url.startsWith('http')) return url
+  return `${API_URL}/uploads/${url}`
+}
+
 onBeforeUnmount(() => {
   if (scanner.value) {
     scanner.value.clear().catch(() => {});
@@ -117,11 +123,21 @@ onBeforeUnmount(() => {
     </div>
     <ul v-if="attendees.length > 0" class="attendees-list">
       <li v-for="att in attendees" :key="att.id" class="attendee-card">
-        <div class="att-info">
-          <strong @click="router.push(`/chat/${eventId}/${att.id}`)" class="clickable-username">{{ att.username }}</strong>
-          <span class="att-email" v-if="att.email">{{ att.email }}</span>
-          <span class="att-timeslot" v-if="att.timeSlot">⌚ {{ new Date(att.timeSlot).toLocaleString([], {weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) }}</span>
-          <span class="badge" :class="att.status">{{ att.status }}</span>
+        <div class="att-profile">
+          <div class="mini-avatar">
+            <img v-if="att.avatarUrl" :src="getAvatarUrl(att.avatarUrl)" :alt="att.username" />
+            <div v-else class="avatar-placeholder">{{ att.username.charAt(0).toUpperCase() }}</div>
+          </div>
+          <div class="att-info">
+            <strong @click="router.push(`/chat/${eventId}/${att.id}`)" class="clickable-username">{{ att.username }}</strong>
+            <span class="att-email" v-if="att.email">{{ att.email }}</span>
+            <span class="att-rsvp" v-if="att.rsvpStatus">
+              <span v-if="att.rsvpStatus === 'going'" class="rsvp-going">Going</span>
+              <span v-else class="rsvp-maybe">Maybe</span>
+            </span>
+            <span class="att-timeslot" v-if="att.timeSlot">⌚ {{ new Date(att.timeSlot).toLocaleString([], {weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) }}</span>
+            <span class="badge" :class="att.status">{{ att.status }}</span>
+          </div>
         </div>
         <div class="att-actions" v-if="isCreator">
           <template v-if="att.status === 'approved'">
@@ -281,4 +297,47 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   font-weight: 600;
 }
+
+/* Att Profile Grid */
+.att-profile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.mini-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--input-bg);
+  flex-shrink: 0;
+  border: 1px solid var(--border-light);
+}
+
+.mini-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-color);
+  color: white;
+  font-weight: 800;
+}
+
+.att-rsvp {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.rsvp-going { color: #34d399; }
+.rsvp-maybe { color: #facc15; }
 </style>

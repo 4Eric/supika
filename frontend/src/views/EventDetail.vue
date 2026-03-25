@@ -18,6 +18,7 @@ const authStore = useAuthStore()
 const event = ref(null)
 const registering = ref(false)
 const selectedTimeSlot = ref(null)
+const rsvpStatus = ref('going')
 const message = ref('')
 const uploadingMemory = ref(false)
 const memoryUploadError = ref('')
@@ -96,6 +97,13 @@ const isRegisteredForSelected = computed(() => !!selectedSlotReg.value)
 const selectedSlotStatus = computed(() => selectedSlotReg.value?.status || '')
 const showAttendees = ref(false)
 
+const publicAttendees = computed(() => {
+  return event.value?.attendees || []
+})
+
+const goingAttendees = computed(() => publicAttendees.value.filter(a => a.rsvpStatus === 'going' || !a.rsvpStatus))
+const maybeAttendees = computed(() => publicAttendees.value.filter(a => a.rsvpStatus === 'maybe'))
+
 const hasApprovedRegistration = computed(() => {
   return registeredSlots.value.some(s => s.status === 'approved')
 })
@@ -122,16 +130,12 @@ onMounted(async () => {
     const id = route.params.id
     await executeFetchEvent(id)
 
-    if (authStore.isAuthenticated) {
-      await executeFetchMyRegistrations(id)
-
-      // If creator, load attendees
-      if (event.value.createdBy === authStore.user?.id) {
-        executeFetchAttendees(id)
+      if (authStore.isAuthenticated) {
+        await executeFetchMyRegistrations(id)
       }
 
+      executeFetchAttendees(id)
       executeFetchMemories(id)
-    }
   } catch (error) {
     message.value = "Event not found or failed to load."
   }
@@ -186,7 +190,10 @@ const registerForEvent = async () => {
 
   try {
     await axios.post(`${API_URL}/api/events/${event.value.id}/register`,
-      { timeSlotId: selectedTimeSlot.value },
+      { 
+        timeSlotId: selectedTimeSlot.value,
+        rsvpStatus: rsvpStatus.value
+      },
       { headers: { 'x-auth-token': authStore.token } }
     )
     await executeFetchMyRegistrations(event.value.id)
@@ -265,6 +272,45 @@ const updateAttendeeStatus = async (userId, status) => {
 
       <!-- Main Body layout -->
       <div class="main-layout">
+        <!-- New Prominent Host Block -->
+        <div class="host-prominent-block glass-panel">
+          <div class="organization-branding-large" v-if="event.organizationName">
+            <div class="org-logo-large">
+              <img v-if="event.organizationLogo" :src="getImageUrl(event.organizationLogo)" :alt="event.organizationName" />
+              <div v-else class="org-logo-placeholder-large">🏢</div>
+            </div>
+            <span class="org-name-large">{{ event.organizationName }}</span>
+          </div>
+
+          <div class="hosts-group-large" v-if="event.hosts && event.hosts.length > 0">
+            <h4 class="hosted-by-text">Hosted By</h4>
+            <div class="hosts-list">
+              <router-link 
+                v-for="host in event.hosts" 
+                :key="host.id" 
+                :to="`/host/${host.id}`" 
+                class="host-badge-large clickable"
+              >
+                <div class="host-avatar-large">
+                  <img v-if="host.avatarUrl" :src="getImageUrl(host.avatarUrl)" :alt="host.username" />
+                  <div v-else class="host-avatar-placeholder">{{ host.username.charAt(0).toUpperCase() }}</div>
+                </div>
+                <span class="host-username-large">{{ host.username }}</span>
+              </router-link>
+            </div>
+          </div>
+          <div class="hosts-group-large" v-else>
+             <h4 class="hosted-by-text">Hosted By</h4>
+             <router-link :to="`/host/${event.createdBy}`" class="host-badge-large clickable">
+                <div class="host-avatar-large">
+                  <img v-if="event.creatorAvatar" :src="getImageUrl(event.creatorAvatar)" :alt="event.creatorName" />
+                  <div v-else class="host-avatar-placeholder">{{ (event.creatorName || 'U').charAt(0).toUpperCase() }}</div>
+                </div>
+                <span class="host-username-large">{{ event.creatorName || 'Organizer' }}</span>
+             </router-link>
+          </div>
+        </div>
+
         <!-- Left / Body Content -->
         <div class="event-body">
           
@@ -340,6 +386,45 @@ const updateAttendeeStatus = async (userId, status) => {
               <button @click="showUploadModal = false" class="btn-sm">Cancel</button>
             </div>
           </div>
+          
+          <!-- Attendee List Section (Public) -->
+          <div class="section attendees-visibility">
+            <h3 class="section-title">Who's Vibing ({{ publicAttendees.length }})</h3>
+            
+            <div v-if="goingAttendees.length > 0" class="attendee-group">
+              <h4 class="group-title">🔥 Going ({{ goingAttendees.length }})</h4>
+              <div class="avatar-stack">
+                <div 
+                  v-for="att in goingAttendees.slice(0, 10)" 
+                  :key="'pub-going-'+att.id" 
+                  class="stack-item"
+                  :title="att.username + ' (Going)'"
+                >
+                  <img v-if="att.avatarUrl" :src="getImageUrl(att.avatarUrl)" :alt="att.username" class="stack-img" />
+                  <div v-else class="stack-placeholder">{{ att.username.charAt(0).toUpperCase() }}</div>
+                </div>
+                <div v-if="goingAttendees.length > 10" class="stack-more">+{{ goingAttendees.length - 10 }}</div>
+              </div>
+            </div>
+
+            <div v-if="maybeAttendees.length > 0" class="attendee-group">
+              <h4 class="group-title">🤔 Maybe ({{ maybeAttendees.length }})</h4>
+              <div class="avatar-stack">
+                <div 
+                  v-for="att in maybeAttendees.slice(0, 10)" 
+                  :key="'pub-maybe-'+att.id" 
+                  class="stack-item"
+                  :title="att.username + ' (Maybe)'"
+                >
+                  <img v-if="att.avatarUrl" :src="getImageUrl(att.avatarUrl)" :alt="att.username" class="stack-img" />
+                  <div v-else class="stack-placeholder">{{ att.username.charAt(0).toUpperCase() }}</div>
+                </div>
+                <div v-if="maybeAttendees.length > 10" class="stack-more">+{{ maybeAttendees.length - 10 }}</div>
+              </div>
+            </div>
+
+            <p v-if="publicAttendees.length === 0" class="empty-vibe">No one has joined yet. Be the first!</p>
+          </div>
 
           <!-- Attendee Management Panel (Creator Only) -->
           <AttendeeList 
@@ -391,6 +476,24 @@ const updateAttendeeStatus = async (userId, status) => {
 
                 <div class="main-actions-grid">
                   <template v-if="!isRegisteredForSelected">
+                    <!-- RSVP Type Selector -->
+                    <div class="rsvp-selector" v-if="!event.ticketPrice || Number(event.ticketPrice) === 0">
+                      <button 
+                        class="rsvp-btn" 
+                        :class="{ active: rsvpStatus === 'going' }"
+                        @click="rsvpStatus = 'going'"
+                      >
+                        🔥 Going
+                      </button>
+                      <button 
+                        class="rsvp-btn" 
+                        :class="{ active: rsvpStatus === 'maybe' }"
+                        @click="rsvpStatus = 'maybe'"
+                      >
+                        🤔 Maybe
+                      </button>
+                    </div>
+
                     <button v-if="event.ticketPrice > 0" @click="handleCheckout" :disabled="checkingOut || !selectedTimeSlot" class="action-btn primary-btn pulse-glow">
                       {{ checkingOut ? 'Redirecting...' : `Buy Ticket - $${event.ticketPrice}` }}
                     </button>
@@ -525,6 +628,184 @@ const updateAttendeeStatus = async (userId, status) => {
   box-shadow: var(--card-shadow);
 }
 
+/* Attendee Stack */
+.attendees-visibility {
+  margin-top: 2rem;
+}
+
+.avatar-stack {
+  display: flex;
+  align-items: center;
+  padding-left: 0.5rem;
+}
+
+.stack-item {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid var(--bg-color);
+  margin-left: -12px;
+  overflow: hidden;
+  background: var(--input-bg);
+  position: relative;
+  transition: transform 0.2s;
+}
+
+.stack-item:hover {
+  transform: translateY(-5px);
+  z-index: 10;
+}
+
+.stack-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.stack-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--primary-color);
+  color: white;
+  font-weight: 800;
+}
+
+.stack-more {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 3px solid var(--bg-color);
+  margin-left: -12px;
+  background: var(--border-light);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.empty-vibe {
+  color: var(--text-muted);
+  font-style: italic;
+  font-size: 0.95rem;
+}
+
+/* Host Prominent Block */
+.host-prominent-block {
+  padding: 1.5rem;
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 1rem;
+}
+
+.organization-branding-large {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+
+.org-logo-large {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+}
+
+.org-logo-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.org-logo-placeholder-large {
+  font-size: 1.5rem;
+  text-align: center;
+  line-height: 48px;
+}
+
+.org-name-large {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--primary-color);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.hosted-by-text {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+  font-family: 'Outfit', sans-serif;
+}
+
+.hosts-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.host-badge-large {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  background: var(--input-bg);
+  padding: 0.5rem 1rem 0.5rem 0.5rem;
+  border-radius: 30px;
+  border: 1px solid var(--border-light);
+  transition: all 0.2s;
+}
+
+.host-badge-large:hover {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: var(--primary-color);
+  transform: translateY(-2px);
+}
+
+.host-avatar-large {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--primary-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.host-avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.host-username-large {
+  color: var(--text-main);
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.attendee-group {
+  margin-bottom: 1.5rem;
+}
+
+.group-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 1rem;
+}
+
 /* Hero and Header styles moved to EventHero.vue */
 .carousel-indicators { display: none; } /* cleanup */
 /* Badge styles moved to EventHero.vue */
@@ -621,6 +902,30 @@ const updateAttendeeStatus = async (userId, status) => {
 .status-alert.pending { background: rgba(234, 179, 8, 0.15); color: #facc15; }
 .status-alert.approved { background: rgba(52, 211, 153, 0.15); color: #34d399; }
 .status-alert.rejected { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+.rsvp-selector {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.rsvp-btn {
+  flex: 1;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: var(--input-bg);
+  color: var(--text-muted);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rsvp-btn.active {
+  background: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
 
 .main-actions-grid { display: flex; flex-direction: column; gap: 0.75rem; }
 .action-btn {
