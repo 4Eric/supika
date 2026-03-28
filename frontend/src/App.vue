@@ -7,6 +7,29 @@ import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useThemeStore } from '@/stores/themeStore'
 import axios from 'axios'
 
+// PWA install prompt
+const deferredInstallPrompt = ref(null)
+const showInstallBanner = ref(false)
+
+const handleInstallPrompt = (e) => {
+  e.preventDefault()
+  deferredInstallPrompt.value = e
+  showInstallBanner.value = true
+}
+
+const installApp = async () => {
+  if (!deferredInstallPrompt.value) return
+  deferredInstallPrompt.value.prompt()
+  const { outcome } = await deferredInstallPrompt.value.userChoice
+  deferredInstallPrompt.value = null
+  showInstallBanner.value = false
+}
+
+const dismissInstallBanner = () => {
+  showInstallBanner.value = false
+  deferredInstallPrompt.value = null
+}
+
 const authStore = useAuthStore()
 const uiStore = useUiStore()
 const themeStore = useThemeStore()
@@ -53,14 +76,18 @@ watch(route, () => {
 
 onMounted(() => {
   if (authStore.isAuthenticated) fetchUnreadCount()
-  // Poll every 10 seconds silently to keep UI live 
   pollInterval = setInterval(() => {
     if (authStore.isAuthenticated) fetchUnreadCount()
   }, 10000)
+
+  // PWA install prompt
+  window.addEventListener('beforeinstallprompt', handleInstallPrompt)
+  window.addEventListener('appinstalled', () => { showInstallBanner.value = false })
 })
 
 onUnmounted(() => {
   if (pollInterval) clearInterval(pollInterval)
+  window.removeEventListener('beforeinstallprompt', handleInstallPrompt)
 })
 
 const logout = () => {
@@ -182,6 +209,23 @@ const pageTitle = computed(() => {
         <router-view />
       </main>
     </div>
+
+    <!-- PWA Install Banner -->
+    <Transition name="slide-up">
+      <div v-if="showInstallBanner" class="pwa-install-banner">
+        <div class="pwa-install-content">
+          <span class="pwa-icon">📲</span>
+          <div class="pwa-text">
+            <strong>Install Supika</strong>
+            <span>Add to home screen for the best experience</span>
+          </div>
+        </div>
+        <div class="pwa-actions">
+          <button @click="installApp" class="pwa-install-btn">Install</button>
+          <button @click="dismissInstallBanner" class="pwa-dismiss-btn">✕</button>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -192,6 +236,68 @@ const pageTitle = computed(() => {
   overflow: hidden;
   background-color: var(--bg-color);
 }
+
+/* PWA Install Banner */
+.pwa-install-banner {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 2rem);
+  max-width: 480px;
+  background: linear-gradient(135deg, #1e293b, #0f172a);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 16px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  z-index: 9999;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(56, 189, 248, 0.1);
+  backdrop-filter: blur(20px);
+}
+.pwa-install-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+.pwa-icon { font-size: 1.8rem; flex-shrink: 0; }
+.pwa-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.pwa-text strong { color: #f8fafc; font-size: 0.95rem; }
+.pwa-text span { color: #94a3b8; font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pwa-actions { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
+.pwa-install-btn {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  color: #000;
+  border: none;
+  border-radius: 10px;
+  padding: 0.5rem 1rem;
+  font-weight: 700;
+  font-size: 0.875rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pwa-dismiss-btn {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+}
+
+/* Slide-up transition */
+.slide-up-enter-active, .slide-up-leave-active { transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.slide-up-enter-from, .slide-up-leave-to { transform: translateX(-50%) translateY(120%); opacity: 0; }
 
 /* Sidebar */
 .sidebar {
