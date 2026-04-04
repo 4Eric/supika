@@ -1,4 +1,4 @@
-<script setup>
+﻿<script setup>
 import { API_URL } from '@/config/api'
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -326,7 +326,7 @@ const updateAttendeeStatus = async (userId, status) => {
                   full: slot.attendeeCount >= slot.maxAttendees && selectedTimeSlot !== slot.id, 
                   booked: registeredSlots.some(s => s.slotId === slot.id) 
                 }"
-                @click="selectedTimeSlot = slot.id"
+                @click="selectedTimeSlot = (selectedTimeSlot === slot.id ? null : slot.id)"
                 :disabled="slot.attendeeCount >= slot.maxAttendees && !registeredSlots.some(s => s.slotId === slot.id) && selectedTimeSlot !== slot.id"
               >
                 <div class="slot-date">{{ new Date(slot.startTime).toLocaleString([], {weekday: 'short', month: 'short', day: 'numeric'}) }}</div>
