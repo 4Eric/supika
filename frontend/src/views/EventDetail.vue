@@ -474,7 +474,7 @@ const updateAttendeeStatus = async (userId, status) => {
                   </div>
                 </div>
 
-                <div class="main-actions-grid">
+                <div class="main-actions-grid" v-if="selectedTimeSlot">
                   <template v-if="!isRegisteredForSelected">
                     <!-- RSVP Type Selector -->
                     <div class="rsvp-selector" v-if="!event.ticketPrice || Number(event.ticketPrice) === 0">
@@ -513,6 +513,12 @@ const updateAttendeeStatus = async (userId, status) => {
                     💬 Chat Organizer
                   </button>
                 </div>
+              </div>
+
+              <!-- Mobile prompt: no slot selected yet -->
+              <div v-if="!selectedTimeSlot && event.createdBy !== authStore.user?.id && authStore.isAuthenticated" class="select-slot-prompt">
+                <span class="prompt-icon">👆</span>
+                <p>Select a time slot to register</p>
               </div>
 
               <!-- Group Chat Action -->
@@ -902,6 +908,21 @@ const updateAttendeeStatus = async (userId, status) => {
 .status-alert.pending { background: rgba(234, 179, 8, 0.15); color: #facc15; }
 .status-alert.approved { background: rgba(52, 211, 153, 0.15); color: #34d399; }
 .status-alert.rejected { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+.select-slot-prompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 1rem;
+  border-radius: 12px;
+  background: rgba(56, 189, 248, 0.06);
+  border: 1px dashed rgba(56, 189, 248, 0.25);
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+.prompt-icon { font-size: 1.5rem; }
+.select-slot-prompt p { font-size: 0.875rem; color: var(--text-muted); margin: 0; }
 
 .rsvp-selector {
   display: flex;
