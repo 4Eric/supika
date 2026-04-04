@@ -11,6 +11,7 @@ import { getImageUrl } from '@/utils/imageUrl'
 import { useAsync } from '@/composables/useAsync'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import QrcodeVue from 'qrcode.vue'
+import EventComments from '@/components/EventComments.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -90,6 +91,7 @@ const handleCheckout = async () => {
 
 const registeredSlots = ref([])
 
+const showComments = ref(false)
 const selectedSlotReg = computed(() => {
   return registeredSlots.value.find(s => s.slotId === selectedTimeSlot.value)
 })
@@ -621,6 +623,20 @@ const updateAttendeeStatus = async (userId, status) => {
         <button @click="showTicketModal = false" class="action-btn primary-btn">Done</button>
       </div>
     </div>
+
+    <!-- Floating Comments Button -->
+    <button @click="showComments = true" class="floating-comments-btn">
+      <span class="icon">💬</span> Comments
+    </button>
+
+    <!-- Comments TikTok Style Bottom Sheet -->
+    <EventComments 
+      v-if="event"
+      :isOpen="showComments" 
+      :eventId="event.id" 
+      :organizerId="event.createdBy" 
+      @close="showComments = false" 
+    />
   </div>
 </template>
 
@@ -1274,5 +1290,37 @@ const updateAttendeeStatus = async (userId, status) => {
   font-size: 0.9rem;
   font-weight: 600;
   padding: 1rem;
+}
+
+/* Floating Comments Button */
+.floating-comments-btn {
+  position: fixed;
+  bottom: 6rem;
+  right: 1.5rem;
+  background: var(--card-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-light);
+  color: var(--text-main);
+  padding: 0.8rem 1.2rem;
+  border-radius: 30px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+  cursor: pointer;
+  z-index: 900;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+}
+.floating-comments-btn:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.5);
+}
+@media (min-width: 768px) {
+  .floating-comments-btn {
+    bottom: 2rem;
+  }
 }
 </style>

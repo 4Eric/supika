@@ -154,16 +154,16 @@ Return ONLY a JSON object (no markdown, no code blocks) in this exact format:
   "description": "Brief description (2-3 sentences max)",
   "date": "YYYY-MM-DDTHH:MM:SS",
   "locationName": "Full venue address",
-  "imageUrl": "Direct URL to the event poster image (must end in .jpg/.png/.webp, NOT a page URL)",
-  "sourceUrl": "URL where you found this event",
-  "category": "One of: music, sports, art, tech, food, comedy, theater, festival, other"
+  "imageUrl": "Direct URL to the event poster image (optional, leave as empty string if not found)",
+  "sourceUrl": "URL where you found this event (optional, leave empty if not found)",
+  "category": "One of: music, sports, art, tech, food, comedy, theater, festival, pet, other"
 }
 
 Rules:
 - The event MUST be real and upcoming (after today's date: ${new Date().toISOString().split('T')[0]})
 - Include the full venue name and city in locationName
 - Use ISO 8601 format for date
-- For imageUrl, use the direct image file URL from the event page (e.g. .jpg, .png, .webp)
+- For imageUrl, if you cannot find a direct image link ending in .jpg or .png, simply provide an empty string "". The system will provide a fallback. Do NOT refuse the request over missing images.
 - Return ONLY the JSON, nothing else`;
 
     // Model fallback chain — try with search tool, then without

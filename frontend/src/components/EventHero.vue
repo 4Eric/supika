@@ -115,8 +115,8 @@ onUnmounted(() => {
     <!-- Back Button -->
     <button class="back-btn" @click="router.back()">← Back</button>
 
-    <!-- Floating title that pops out in 3D -->
-    <div class="hero-title-float" :style="{ transform: `translateZ(40px) translateY(${-scrollY * 0.1}px)` }">
+    <!-- Floating title with faked 2D parallax offset to bypass Safari/Chrome 3D hit-test bug -->
+    <div class="hero-title-float" :style="{ transform: `translateX(${tiltY * -0.8}px) translateY(${tiltX * 0.8 - scrollY * 0.1}px)` }">
       <h1 class="hero-event-title">{{ event.title }}</h1>
       <div class="hero-meta-badges">
         <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`"
@@ -193,11 +193,11 @@ onUnmounted(() => {
 /* Floating 3D title overlay */
 .hero-title-float {
   position: absolute;
-  bottom: 24px;
+  bottom: 60px;
   left: 0;
   right: 0;
   padding: 0 1.5rem;
-  z-index: 10;
+  z-index: 40;
   transform-style: preserve-3d;
   transition: transform 0.1s ease-out;
   will-change: transform;
@@ -230,11 +230,14 @@ onUnmounted(() => {
   color: #e2e8f0;
   text-decoration: none;
   transition: all 0.2s;
+  pointer-events: auto;
+  position: relative;
+  z-index: 30;
 }
 .hero-badge:hover { background: rgba(0,0,0,0.75); border-color: rgba(255,255,255,0.35); }
 .location-badge { color: #38bdf8; border-color: rgba(56,189,248,0.3); }
 .ai-badge { background: linear-gradient(135deg, rgba(168,85,247,0.4), rgba(56,189,248,0.4)); color: #e9d5ff; }
-.source-badge { color: #34d399; border-color: rgba(52,211,153,0.3); }
+.source-badge { color: #34d399; border-color: rgba(52,211,153,0.3); cursor: pointer; }
 
 .carousel-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.5); border: none; font-size: 1.5rem; color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: 0.2s; z-index: 10; }
 .carousel-btn:hover { background: var(--primary-color); }

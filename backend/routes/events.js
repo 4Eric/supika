@@ -58,6 +58,13 @@ router.get('/hosted/me', auth, eventController.getHostedEvents);
 // Get single event
 router.get('/:id', eventController.getEventById);
 
+const commentController = require('../controllers/commentController');
+
+// --- Comments / Q&A ---
+router.get('/:id/comments', optionalAuth, commentController.getComments);
+router.post('/:id/comments', auth, commentController.addComment);
+router.post('/:id/comments/:commentId/like', auth, commentController.toggleLike);
+
 // Create event
 router.post('/', [auth, eventsWriteLimiter, upload.array('media', 10), eventValidation], eventController.createEvent);
 
