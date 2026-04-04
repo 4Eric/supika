@@ -1,6 +1,6 @@
-﻿<script setup>
+<script setup>
 import { API_URL } from '@/config/api'
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
@@ -139,7 +139,44 @@ onMounted(async () => {
   } catch (error) {
     message.value = "Event not found or failed to load."
   }
+
+  // Scroll-reveal: animate sections in when they enter viewport
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('revealed')
+        observer.unobserve(entry.target)
+      }
+    })
+  }, { threshold: 0.08 })
+
+  // Observe after a tick so DOM is ready
+  setTimeout(() => {
+    document.querySelectorAll('.reveal-on-scroll').forEach(el => observer.observe(el))
+  }, 100)
+  scrollObserver = observer
 })
+
+let scrollObserver = null
+onUnmounted(() => {
+  if (scrollObserver) scrollObserver.disconnect()
+})
+
+// 3D card tilt on hover/touch
+const onCardMouseMove = (e) => {
+  const card = e.currentTarget
+  const rect = card.getBoundingClientRect()
+  
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY
+
+  const cx = (clientX - rect.left) / rect.width - 0.5
+  const cy = (clientY - rect.top) / rect.height - 0.5
+  card.style.transform = `perspective(800px) rotateX(${cy * -12}deg) rotateY(${cx * 15}deg) translateZ(8px)`
+}
+const onCardMouseLeave = (e) => {
+  e.currentTarget.style.transform = ''
+}
 
 const fetchMemories = () => executeFetchMemories(route.params.id)
 
@@ -273,7 +310,9 @@ const updateAttendeeStatus = async (userId, status) => {
       <!-- Main Body layout -->
       <div class="main-layout">
         <!-- New Prominent Host Block -->
-        <div class="host-prominent-block glass-panel">
+        <div class="host-prominent-block glass-panel reveal-on-scroll tilt-card"
+             @mousemove="onCardMouseMove" @mouseleave="onCardMouseLeave"
+             @touchmove="onCardMouseMove" @touchend="onCardMouseLeave">
           <div class="organization-branding-large" v-if="event.organizationName">
             <div class="org-logo-large">
               <img v-if="event.organizationLogo" :src="getImageUrl(event.organizationLogo)" :alt="event.organizationName" />
@@ -314,7 +353,7 @@ const updateAttendeeStatus = async (userId, status) => {
         <!-- Left / Body Content -->
         <div class="event-body">
           
-          <div v-if="event.timeSlots && event.timeSlots.length > 0" class="section time-slots-section">
+          <div v-if="event.timeSlots && event.timeSlots.length > 0" class="section time-slots-section reveal-on-scroll">
             <h3 class="section-title">Select a Time Slot</h3>
             <div class="time-slot-scroll-container">
               <button 
@@ -339,12 +378,14 @@ const updateAttendeeStatus = async (userId, status) => {
             </div>
           </div>
           
-          <div class="section event-description">
+          <div class="section event-description reveal-on-scroll tilt-card glass-panel"
+               @mousemove="onCardMouseMove" @mouseleave="onCardMouseLeave"
+               @touchmove="onCardMouseMove" @touchend="onCardMouseLeave">
             <h3 class="section-title">About this event</h3>
             <p class="desc-text">{{ event.description }}</p>
           </div>
           
-          <div class="section map-section">
+          <div class="section map-section reveal-on-scroll">
             <h3 class="section-title">Location</h3>
             <div class="map-wrapper glass-panel">
               <EventMap :events="[event]" />
@@ -352,7 +393,7 @@ const updateAttendeeStatus = async (userId, status) => {
           </div>
 
           <!-- Memory Board Section -->
-          <div class="section memory-board-section">
+          <div class="section memory-board-section reveal-on-scroll">
             <div class="section-header-flex">
               <h3 class="section-title">Memory Board</h3>
               <button v-if="hasApprovedRegistration || event.createdBy === authStore.user?.id" 
@@ -363,7 +404,8 @@ const updateAttendeeStatus = async (userId, status) => {
             </div>
             
             <div v-if="memories.length > 0" class="memories-masonry">
-              <div v-for="mem in memories" :key="mem.id" class="memory-card">
+              <div v-for="(mem, i) in memories" :key="mem.id" class="memory-card"
+                   :style="{ '--rot': ((i % 5) - 2) + 'deg' }">
                 <img :src="getImageUrl(mem.imageUrl)" class="memory-img" loading="lazy" />
                 <div class="memory-info">
                   <span class="uploader-name">by {{ mem.uploaderName }}</span>
@@ -388,7 +430,7 @@ const updateAttendeeStatus = async (userId, status) => {
           </div>
           
           <!-- Attendee List Section (Public) -->
-          <div class="section attendees-visibility">
+          <div class="section attendees-visibility reveal-on-scroll">
             <h3 class="section-title">Who's Vibing ({{ publicAttendees.length }})</h3>
             
             <div v-if="goingAttendees.length > 0" class="attendee-group">
@@ -595,6 +637,156 @@ const updateAttendeeStatus = async (userId, status) => {
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* =========================================
+   3D IMMERSIVE SYSTEM
+   ========================================= */
+
+/* Scroll-reveal: elements start invisible, animate in when .revealed is added */
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+              transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+.reveal-on-scroll.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Stagger children inside main-layout */
+.main-layout > .reveal-on-scroll:nth-child(1) { transition-delay: 0s; }
+.main-layout > .reveal-on-scroll:nth-child(2) { transition-delay: 0.06s; }
+.main-layout > .reveal-on-scroll:nth-child(3) { transition-delay: 0.12s; }
+.event-body .reveal-on-scroll:nth-child(1) { transition-delay: 0.05s; }
+.event-body .reveal-on-scroll:nth-child(2) { transition-delay: 0.12s; }
+.event-body .reveal-on-scroll:nth-child(3) { transition-delay: 0.19s; }
+.event-body .reveal-on-scroll:nth-child(4) { transition-delay: 0.26s; }
+.event-body .reveal-on-scroll:nth-child(5) { transition-delay: 0.33s; }
+
+/* Tilt card: preserve-3d for mouse tilt effect */
+.tilt-card {
+  transform-style: preserve-3d;
+  transition: transform 0.18s ease-out, box-shadow 0.18s ease-out;
+  will-change: transform;
+}
+.tilt-card:hover {
+  box-shadow: 0 20px 60px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(56,189,248,0.1);
+}
+
+/* Description section gets padding when it's a glass panel */
+.event-description.glass-panel {
+  padding: 1.75rem 2rem;
+  border-radius: 20px;
+}
+
+/* =========================================
+   TIME SLOT 3D LIFT EFFECTS
+   ========================================= */
+.time-slot-card {
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.22s ease,
+              border-color 0.22s ease,
+              background 0.22s ease;
+  will-change: transform;
+  position: relative;
+  overflow: hidden;
+}
+.time-slot-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.04), transparent);
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+.time-slot-card:not(:disabled):hover {
+  transform: translateY(-5px) translateZ(8px) scale(1.02);
+  box-shadow: 0 12px 32px -4px rgba(56, 189, 248, 0.2), 0 0 0 1px rgba(56,189,248,0.15);
+}
+.time-slot-card:not(:disabled):hover::before { opacity: 1; }
+
+.time-slot-card.active {
+  transform: translateY(-6px) translateZ(12px) scale(1.04);
+  box-shadow: 0 16px 40px -6px rgba(56, 189, 248, 0.35),
+              0 0 0 2px rgba(56, 189, 248, 0.5),
+              0 0 20px rgba(56, 189, 248, 0.15);
+  animation: slotGlow 2s ease-in-out infinite;
+}
+@keyframes slotGlow {
+  0%, 100% { box-shadow: 0 16px 40px -6px rgba(56,189,248,0.35), 0 0 0 2px rgba(56,189,248,0.5), 0 0 20px rgba(56,189,248,0.1); }
+  50%       { box-shadow: 0 16px 44px -4px rgba(56,189,248,0.5), 0 0 0 2px rgba(56,189,248,0.7), 0 0 30px rgba(56,189,248,0.2); }
+}
+
+.time-slot-card.full:not(.booked) {
+  transform: translateY(2px) rotateX(3deg);
+  opacity: 0.45;
+}
+
+/* =========================================
+   ACTION PANEL 3D FLOAT
+   ========================================= */
+.action-sidebar {
+  perspective: 800px;
+}
+.action-panel.glass-panel {
+  transform: translateZ(0);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
+  transform-style: preserve-3d;
+}
+@media (min-width: 1024px) {
+  .action-panel.glass-panel:hover {
+    transform: translateZ(6px);
+    box-shadow: 0 24px 60px -10px rgba(0,0,0,0.5), 0 0 0 1px rgba(56,189,248,0.15);
+  }
+}
+
+/* Registration panel spring slide-up */
+.main-actions-grid {
+  animation: springUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  transform-origin: bottom center;
+}
+@keyframes springUp {
+  from { opacity: 0; transform: translateY(16px) rotateX(-8deg); }
+  to   { opacity: 1; transform: translateY(0) rotateX(0deg); }
+}
+
+/* =========================================
+   MEMORY BOARD — POLAROID 3D
+   ========================================= */
+.memory-card {
+  transform: rotate(var(--rot, 0deg));
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.3s ease,
+              z-index 0s;
+  will-change: transform;
+  position: relative;
+  z-index: 1;
+}
+.memory-card:hover {
+  transform: rotate(0deg) translateY(-8px) translateZ(20px) scale(1.06);
+  box-shadow: 0 20px 50px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(56,189,248,0.2);
+  z-index: 10;
+}
+
+/* =========================================
+   REDUCED MOTION + TOUCH FALLBACKS
+   ========================================= */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-on-scroll { opacity: 1; transform: none; transition: none; }
+  .time-slot-card { transition: none; animation: none; }
+  .time-slot-card.active { animation: none; }
+  .memory-card { transition: none; }
+  .main-actions-grid { animation: none; }
+  .tilt-card { transition: none; }
+}
+@media (hover: none) {
+  .tilt-card:hover { box-shadow: var(--card-shadow); }
+  .time-slot-card:not(:disabled):hover { transform: none; box-shadow: none; }
+  .memory-card:hover { transform: rotate(var(--rot, 0deg)); }
 }
 
 .spinner {
