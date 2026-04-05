@@ -190,6 +190,7 @@ async function runMigration() {
 
         await client.query(`ALTER TABLE "Events" ADD COLUMN IF NOT EXISTS organization_id INT REFERENCES "Organizations"(id) ON DELETE SET NULL;`);
         await client.query(`ALTER TABLE "Events" ADD COLUMN IF NOT EXISTS ticket_price DECIMAL(10,2) DEFAULT 0.00;`);
+        await client.query(`ALTER TABLE "Events" ADD COLUMN IF NOT EXISTS currency VARCHAR(10) DEFAULT 'CAD';`);
         await client.query(`ALTER TABLE "Events" ADD COLUMN IF NOT EXISTS stripe_account_id VARCHAR(255);`);
         await client.query(`ALTER TABLE "Events" ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'other';`);
         await client.query(`ALTER TABLE "Events" ADD COLUMN IF NOT EXISTS source_url VARCHAR(500);`);
