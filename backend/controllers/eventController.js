@@ -11,7 +11,7 @@ const getAllEvents = async (req, res) => {
         const timeFilter = req.query.time_filter === 'past' ? 'past' : 'upcoming';
 
         // Use a cache key that represents the query but allow for mutation
-        const cacheKey = `all_events_${timeFilter}`;
+        const cacheKey = `all_events_${timeFilter}_v2`;
         let cachedEvents = cacheService.get(cacheKey);
 
         if (cachedEvents) {
@@ -25,17 +25,34 @@ const getAllEvents = async (req, res) => {
         const sortOrder = timeFilter === 'past' ? 'DESC' : 'ASC';
 
         // Fetch a larger set (e.g. 1000) to keep the cache meaningful for pagination/map
-        const result = await pool.query(`
-            SELECT e.*, u.username as creator_name, u.avatar_url as creator_avatar,
-            (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) AS date,
-            (SELECT COUNT(*) FROM "Registrations" r JOIN "EventTimeSlots" ts ON r.time_slot_id = ts.id WHERE ts.event_id = e.id AND (r.status = 'approved' OR r.status IS NULL)) AS attendee_count,
-            (SELECT COUNT(*) FROM "EventComments" ec WHERE ec.event_id = e.id) AS comment_count
-            FROM "Events" e 
-            LEFT JOIN "Users" u ON e.created_by = u.id 
-            WHERE (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) ${timeComparison} NOW()
-            ORDER BY (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) ${sortOrder}
-            LIMIT 1000
-        `);
+        let result;
+        try {
+            result = await pool.query(`
+                SELECT e.*, u.username as creator_name, u.avatar_url as creator_avatar,
+                (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) AS date,
+                (SELECT COUNT(*) FROM "Registrations" r JOIN "EventTimeSlots" ts ON r.time_slot_id = ts.id WHERE ts.event_id = e.id AND (r.status = 'approved' OR r.status IS NULL)) AS attendee_count,
+                (SELECT COUNT(*) FROM "EventComments" ec WHERE ec.event_id = e.id) AS comment_count
+                FROM "Events" e 
+                LEFT JOIN "Users" u ON e.created_by = u.id 
+                WHERE (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) ${timeComparison} NOW()
+                ORDER BY (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) ${sortOrder}
+                LIMIT 1000
+            `);
+        } catch (queryErr) {
+            // Fallback: EventComments table may not exist yet (pre-migration)
+            console.warn('[getAllEvents] Falling back to query without comment_count:', queryErr.message);
+            result = await pool.query(`
+                SELECT e.*, u.username as creator_name, u.avatar_url as creator_avatar,
+                (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) AS date,
+                (SELECT COUNT(*) FROM "Registrations" r JOIN "EventTimeSlots" ts ON r.time_slot_id = ts.id WHERE ts.event_id = e.id AND (r.status = 'approved' OR r.status IS NULL)) AS attendee_count,
+                0 AS comment_count
+                FROM "Events" e 
+                LEFT JOIN "Users" u ON e.created_by = u.id 
+                WHERE (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) ${timeComparison} NOW()
+                ORDER BY (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) ${sortOrder}
+                LIMIT 1000
+            `);
+        }
 
         const allMapped = mapToCamelCase(result.rows);
         cacheService.set(cacheKey, allMapped);
