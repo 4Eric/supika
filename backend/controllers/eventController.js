@@ -28,7 +28,8 @@ const getAllEvents = async (req, res) => {
         const result = await pool.query(`
             SELECT e.*, u.username as creator_name, u.avatar_url as creator_avatar,
             (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) AS date,
-            (SELECT COUNT(*) FROM "Registrations" r JOIN "EventTimeSlots" ts ON r.time_slot_id = ts.id WHERE ts.event_id = e.id AND (r.status = 'approved' OR r.status IS NULL)) AS attendee_count
+            (SELECT COUNT(*) FROM "Registrations" r JOIN "EventTimeSlots" ts ON r.time_slot_id = ts.id WHERE ts.event_id = e.id AND (r.status = 'approved' OR r.status IS NULL)) AS attendee_count,
+            (SELECT COUNT(*) FROM "EventComments" ec WHERE ec.event_id = e.id) AS comment_count
             FROM "Events" e 
             LEFT JOIN "Users" u ON e.created_by = u.id 
             WHERE (SELECT MIN(start_time) FROM "EventTimeSlots" ts WHERE ts.event_id = e.id) ${timeComparison} NOW()
@@ -182,6 +183,7 @@ const normalizeEventData = (body) => {
         ticketPrice: (ticketPrice !== undefined && ticketPrice !== null) ? parseFloat(ticketPrice) : (ticket_price !== undefined ? parseFloat(ticket_price) : 0),
         currency: currency || 'CAD',
         timeSlots: timeSlots || time_slots,
+        category: body.category || 'other',
         date
     };
 };
@@ -241,13 +243,14 @@ const createEvent = async (req, res) => {
         const { organizationId, hostIds } = req.body;
         
         const result = await client.query(`
-            INSERT INTO "Events" (title, description, location_name, latitude, longitude, created_by, image_url, requires_approval, ticket_price, currency, organization_id)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *
+            INSERT INTO "Events" (title, description, location_name, latitude, longitude, created_by, image_url, requires_approval, ticket_price, currency, organization_id, category)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *
         `, [
             data.title || null, data.description || null, data.locationName || null,
             data.latitude, data.longitude, req.user.id,
             primaryImage, data.requiresApproval,
-            data.ticketPrice, data.currency, organizationId || null
+            data.ticketPrice, data.currency, organizationId || null,
+            data.category || 'other'
         ]);
         const eventId = result.rows[0].id;
 
@@ -281,10 +284,10 @@ const performUpdate = async (client, eventId, data, files) => {
     let params = [
         data.title, data.description, data.locationName,
         data.latitude, data.longitude, data.requiresApproval,
-        data.ticketPrice, data.currency
+        data.ticketPrice, data.currency, data.category || 'other'
     ];
-    let sql = `UPDATE "Events" SET title=$1, description=$2, location_name=$3, latitude=$4, longitude=$5, requires_approval=$6, ticket_price=$7, currency=$8`;
-    let paramCount = 8;
+    let sql = `UPDATE "Events" SET title=$1, description=$2, location_name=$3, latitude=$4, longitude=$5, requires_approval=$6, ticket_price=$7, currency=$8, category=$9`;
+    let paramCount = 9;
 
     if (files && files.length > 0) {
         const firstImg = files.find(fi => fi.mimetype.startsWith('image/'));

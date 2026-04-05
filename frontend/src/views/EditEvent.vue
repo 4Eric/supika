@@ -22,6 +22,7 @@ const imageFiles = ref([])
 const requiresApproval = ref(false)
 const ticketPrice = ref(0)
 const currency = ref('CAD')
+const category = ref('other')
 const timeSlots = ref([])
 const previews = ref([])
 
@@ -47,6 +48,7 @@ onMounted(async () => {
     requiresApproval.value = event.requiresApproval
     ticketPrice.value = event.ticketPrice
     currency.value = event.currency || 'CAD'
+    category.value = event.category || 'other'
     
     if (event.timeSlots && event.timeSlots.length > 0) {
       timeSlots.value = event.timeSlots.map(ts => ({
@@ -171,6 +173,7 @@ const buildEventFormData = () => {
   formData.append('requiresApproval', requiresApproval.value);
   formData.append('ticketPrice', ticketPrice.value);
   formData.append('currency', currency.value);
+  formData.append('category', category.value);
   
   const validSlots = timeSlots.value.filter(s => s.startTime);
   if (validSlots.length === 0) return null;
@@ -229,6 +232,14 @@ const submitForm = async () => {
         <div class="form-group">
           <label>Description</label>
           <textarea v-model="description" class="form-control" required rows="4" placeholder="Update the description..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <div class="category-grid">
+            <button type="button" v-for="cat in [['music','🎵'],['sports','🏋️'],['art','🎨'],['tech','💻'],['food','🍕'],['comedy','😄'],['theater','🎭'],['festival','🎪'],['pet','🐾'],['other','✨']]" :key="cat[0]" class="cat-chip" :class="{ active: category === cat[0] }" @click="category = cat[0]">
+              {{ cat[1] }} {{ cat[0] }}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -521,5 +532,36 @@ const submitForm = async () => {
 }
 
 /* Responsive styles moved to components */
+
+/* Category chip picker */
+.category-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.cat-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  border: 1px solid var(--border-light);
+  background: var(--input-bg);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
+  text-transform: capitalize;
+}
+.cat-chip:hover { border-color: var(--primary-color); color: var(--text-main); }
+.cat-chip.active {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: rgba(168, 85, 247, 0.7);
+  color: #d8b4fe;
+}
+
 </style>
 

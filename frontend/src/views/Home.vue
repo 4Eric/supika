@@ -68,6 +68,32 @@ const filters = [
   { label: 'Past', icon: '🕰️' }
 ]
 
+const CATEGORIES = [
+  { label: 'music',    icon: '🎵' },
+  { label: 'sports',   icon: '🏋️' },
+  { label: 'art',      icon: '🎨' },
+  { label: 'tech',     icon: '💻' },
+  { label: 'food',     icon: '🍕' },
+  { label: 'comedy',   icon: '😄' },
+  { label: 'theater',  icon: '🎭' },
+  { label: 'festival', icon: '🎪' },
+  { label: 'pet',      icon: '🐾' },
+  { label: 'other',    icon: '✨' },
+]
+
+const activeCategories = ref([])
+
+const toggleCategory = (cat) => {
+  const i = activeCategories.value.indexOf(cat)
+  if (i === -1) activeCategories.value.push(cat)
+  else activeCategories.value.splice(i, 1)
+}
+
+const categoryEmoji = (cat) => {
+  const found = CATEGORIES.find(c => c.label === (cat || '').toLowerCase())
+  return found ? found.icon : '✨'
+}
+
 // Pagination State
 const limit = 12
 const offset = ref(0)
@@ -187,6 +213,11 @@ const timeFilteredEvents = computed(() => {
     )
   }
 
+  // Category filter (multi-select)
+  if (activeCategories.value.length > 0) {
+    filtered = filtered.filter(e => activeCategories.value.includes((e.category || 'other').toLowerCase()))
+  }
+
   return filtered
 })
 
@@ -214,6 +245,22 @@ const feedEvents = computed(() => {
   // Events are already sorted by date from the backend.
   return scored
 })
+
+// --- Happening Now (events starting within the next 2 hours) ---
+const happeningNow = computed(() => {
+  const now = new Date()
+  const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000)
+  return allEvents.value.filter(e => {
+    const d = new Date(e.date)
+    return d >= now && d <= twoHoursLater
+  })
+})
+
+// --- Is New (created within last 24h) ---
+const isNew = (event) => {
+  if (!event.createdAt) return false
+  return (Date.now() - new Date(event.createdAt).getTime()) < 24 * 60 * 60 * 1000
+}
 
 const formatLocation = (loc) => {
   if (!loc) return ''
@@ -254,6 +301,39 @@ const goToHost = (id) => {
         </button>
       </div>
       <div class="scroll-fade"></div>
+    </div>
+
+    <!-- Category Chips -->
+    <div class="category-chips-wrapper">
+      <div class="category-chips">
+        <button
+          v-for="cat in CATEGORIES"
+          :key="cat.label"
+          class="category-chip"
+          :class="{ active: activeCategories.includes(cat.label) }"
+          @click="toggleCategory(cat.label)"
+        >
+          <span>{{ cat.icon }}</span>
+          <span class="chip-label">{{ cat.label.charAt(0).toUpperCase() + cat.label.slice(1) }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Happening Now -->
+    <div v-if="happeningNow.length > 0 && !uiStore.searchQuery" class="happening-now-section">
+      <h3 class="section-title"><span class="pulse-dot"></span> Happening Now</h3>
+      <div class="horizontal-scroll">
+        <div v-for="event in happeningNow" :key="'now-'+event.id" class="rec-card" @click="goToEvent(event.id)">
+          <div class="rec-img-wrapper">
+            <img :src="getImageUrl(event.imageUrl)" class="rec-img" />
+            <div class="now-badge">🔴 Starting Soon</div>
+          </div>
+          <div class="rec-info">
+            <h4>{{ event.title }}</h4>
+            <p>{{ formatLocation(event.locationName) }}</p>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div v-if="activeFilter === 'All' && recommendedEvents.length > 0 && !uiStore.searchQuery" class="recommendations-section">
@@ -314,6 +394,10 @@ const goToHost = (id) => {
           <span v-if="event._recScore > 0" class="for-you-badge">✨ For You</span>
           <!-- Auto-Accept badge -->
           <span v-if="!event.requiresApproval" class="auto-badge">⚡ Instant</span>
+          <!-- Category badge -->
+          <span v-if="event.category" class="category-badge">{{ categoryEmoji(event.category) }} {{ event.category }}</span>
+          <!-- New badge -->
+          <span v-if="isNew(event)" class="new-badge">🆕 New</span>
         </div>
 
         <!-- Content -->
@@ -329,6 +413,10 @@ const goToHost = (id) => {
               >{{ formatLocation(event.locationName) }}</a>
             </span>
             <span class="meta-item">📅 {{ new Date(event.date).toLocaleDateString() }}</span>
+            <span class="meta-item social-meta">
+              <span v-if="event.attendeeCount > 0">👥 {{ event.attendeeCount }} going</span>
+              <span v-if="event.commentCount > 0" class="comment-count">💬 {{ event.commentCount }}</span>
+            </span>
           </div>
           <div class="card-author" @click.stop="goToHost(event.createdBy)">
             <div class="author-avatar">
@@ -656,7 +744,8 @@ const goToHost = (id) => {
 
 /* --- Recommendations --- */
 .recommendations-section { margin-bottom: 2rem; overflow: hidden; }
-.section-title { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 1rem; padding-left: 0.25rem; }
+.happening-now-section { margin-bottom: 2rem; overflow: hidden; }
+.section-title { font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 1rem; padding-left: 0.25rem; display: flex; align-items: center; gap: 0.5rem; }
 .horizontal-scroll { display: flex; gap: 1rem; overflow-x: auto; padding: 0.5rem 0.25rem 1rem; scrollbar-width: none; }
 .horizontal-scroll::-webkit-scrollbar { display: none; }
 .rec-card { flex: 0 0 220px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-light); border-radius: 16px; overflow: hidden; cursor: pointer; transition: transform 0.2s; }
@@ -664,9 +753,103 @@ const goToHost = (id) => {
 .rec-img-wrapper { position: relative; height: 120px; }
 .rec-img { width: 100%; height: 100%; object-fit: cover; }
 .vibe-match-badge { position: absolute; bottom: 8px; right: 8px; background: rgba(56, 189, 248, 0.9); color: var(--btn-text-on-primary); font-size: 0.6rem; font-weight: 800; padding: 2px 6px; border-radius: 4px; }
+.now-badge { position: absolute; bottom: 8px; left: 8px; background: rgba(239, 68, 68, 0.9); color: #fff; font-size: 0.6rem; font-weight: 800; padding: 2px 8px; border-radius: 4px; }
 .rec-info { padding: 10px; }
 .rec-info h4 { font-size: 0.9rem; margin: 0 0 4px; color: var(--text-main); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rec-info p { font-size: 0.75rem; color: var(--text-muted); }
+
+/* Pulsing red dot for Happening Now */
+.pulse-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  animation: pulse-ring 1.5s ease-out infinite;
+  flex-shrink: 0;
+}
+@keyframes pulse-ring {
+  0%  { box-shadow: 0 0 0 0 rgba(239,68,68,0.7); }
+  70% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+  100%{ box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+}
+
+/* --- Category Chips --- */
+.category-chips-wrapper { overflow-x: auto; scrollbar-width: none; margin-bottom: 0.25rem; }
+.category-chips-wrapper::-webkit-scrollbar { display: none; }
+.category-chips {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.25rem 0.25rem 0.5rem;
+  width: max-content;
+}
+.category-chip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--input-bg);
+  border: 1px solid var(--border-light);
+  color: var(--text-muted);
+  padding: 0.3rem 0.85rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.category-chip:hover {
+  border-color: var(--primary-color);
+  color: var(--text-main);
+}
+.category-chip.active {
+  background: rgba(168, 85, 247, 0.15);
+  border-color: rgba(168, 85, 247, 0.7);
+  color: #d8b4fe;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.2);
+}
+.chip-label { font-size: 0.75rem; }
+
+/* --- Card extra badges --- */
+.category-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(6px);
+  color: #e2e8f0;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.2px;
+  text-transform: capitalize;
+}
+.new-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(251, 146, 60, 0.9);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.3px;
+}
+
+/* Social proof meta row */
+.social-meta {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  color: var(--text-muted);
+}
+.comment-count { opacity: 0.8; }
 
 /* ---- Responsive ---- */
 

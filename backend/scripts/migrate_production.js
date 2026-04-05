@@ -191,10 +191,35 @@ async function runMigration() {
         await client.query(`ALTER TABLE "Events" ADD COLUMN IF NOT EXISTS organization_id INT REFERENCES "Organizations"(id) ON DELETE SET NULL;`);
         await client.query(`ALTER TABLE "Events" ADD COLUMN IF NOT EXISTS ticket_price DECIMAL(10,2) DEFAULT 0.00;`);
         await client.query(`ALTER TABLE "Events" ADD COLUMN IF NOT EXISTS stripe_account_id VARCHAR(255);`);
+        await client.query(`ALTER TABLE "Events" ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT 'other';`);
+        await client.query(`ALTER TABLE "Events" ADD COLUMN IF NOT EXISTS source_url VARCHAR(500);`);
 
         await client.query(`ALTER TABLE "Registrations" ADD COLUMN IF NOT EXISTS rsvp_status VARCHAR(20) DEFAULT 'going';`);
         await client.query(`ALTER TABLE "Registrations" ADD COLUMN IF NOT EXISTS check_in_time TIMESTAMP DEFAULT NULL;`);
         await client.query(`ALTER TABLE "Registrations" ADD COLUMN IF NOT EXISTS ticket_token UUID DEFAULT gen_random_uuid();`);
+
+        // ─── EventComments table ─────────────────────────────────────────────
+        console.log('▶ Creating EventComments table (if not exists)...');
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS "EventComments" (
+                id SERIAL PRIMARY KEY,
+                event_id INT NOT NULL REFERENCES "Events"(id) ON DELETE CASCADE,
+                user_id INT REFERENCES "Users"(id) ON DELETE SET NULL,
+                guest_name VARCHAR(100),
+                content TEXT NOT NULL,
+                parent_id INT REFERENCES "EventComments"(id) ON DELETE CASCADE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS "EventCommentLikes" (
+                id SERIAL PRIMARY KEY,
+                comment_id INT NOT NULL REFERENCES "EventComments"(id) ON DELETE CASCADE,
+                user_id INT NOT NULL REFERENCES "Users"(id) ON DELETE CASCADE,
+                UNIQUE(comment_id, user_id)
+            );
+        `);
 
         // ─── 4. SEED EventHosts from existing Events (idempotent) ───────────
         console.log('▶ Seeding EventHosts from existing Events.created_by...');

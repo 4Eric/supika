@@ -273,8 +273,8 @@ async function insertDiscoveredEvent(eventData) {
 
     // Insert the event
     const eventRes = await pool.query(`
-        INSERT INTO "Events" (title, description, location_name, latitude, longitude, created_by, image_url, requires_approval, source_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8)
+        INSERT INTO "Events" (title, description, location_name, latitude, longitude, created_by, image_url, requires_approval, source_url, category)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, false, $8, $9)
         RETURNING id
     `, [
         eventData.title,
@@ -284,7 +284,8 @@ async function insertDiscoveredEvent(eventData) {
         eventData.longitude,
         EFINDER_USER_ID,
         eventData.imageUrl || null,
-        eventData.sourceUrl || null
+        eventData.sourceUrl || null,
+        eventData.category || 'other'
     ]);
 
     const eventId = eventRes.rows[0].id;
