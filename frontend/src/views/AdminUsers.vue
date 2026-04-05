@@ -4,6 +4,15 @@ import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
 
+// Debounce helper
+const debounce = (fn, delay) => {
+    let timer
+    return (...args) => {
+        clearTimeout(timer)
+        timer = setTimeout(() => fn(...args), delay)
+    }
+}
+
 const authStore = useAuthStore()
 const users = ref([])
 const loading = ref(true)
@@ -37,8 +46,15 @@ const fetchUsers = async () => {
     }
 }
 
+const debouncedFetch = debounce(fetchUsers, 400)
+
 const filteredUsers = computed(() => {
-    return users.value // Backend already filters via search query, but we could add further frontend filtering here if needed
+    if (!searchQuery.value) return users.value
+    const q = searchQuery.value.toLowerCase()
+    return users.value.filter(u =>
+        u.username.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q)
+    )
 })
 
 const openEditModal = (user) => {
@@ -125,7 +141,7 @@ onMounted(fetchUsers)
                     type="text" 
                     v-model="searchQuery" 
                     placeholder="Search by username or email..." 
-                    @input="fetchUsers"
+                    @input="debouncedFetch"
                     class="search-input"
                 >
             </div>
