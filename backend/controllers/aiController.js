@@ -86,7 +86,7 @@ const getRecommendations = async (req, res) => {
             JOIN "EventTimeSlots" ts ON r.time_slot_id = ts.id
             JOIN "Events" e ON ts.event_id = e.id
             WHERE r.user_id = $1
-            ORDER BY r.created_at DESC
+            ORDER BY r.registration_date DESC
             LIMIT 5
         `, [userId]);
 
