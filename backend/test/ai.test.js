@@ -4,10 +4,25 @@ const { pgPool, poolPromise } = require('../config/db');
 const jwt = require('jsonwebtoken');
 
 // Mock external dependencies
-jest.mock('../config/db', () => ({
-    pgPool: { query: jest.fn(), on: jest.fn(), end: jest.fn() },
-    poolPromise: Promise.resolve({ query: jest.fn() })
-}));
+jest.mock('../config/db', () => {
+    const mockPoolObj = {
+        query: jest.fn(),
+        connect: jest.fn().mockImplementation(function() {
+            return Promise.resolve({
+                query: (sql, params) => {
+                    if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return Promise.resolve({});
+                    return mockPoolObj.query(sql, params);
+                },
+                release: jest.fn()
+            });
+        }),
+        release: jest.fn()
+    };
+    return {
+        pgPool: { query: jest.fn(), on: jest.fn(), end: jest.fn() },
+        poolPromise: Promise.resolve(mockPoolObj)
+    };
+});
 
 jest.mock('@google/generative-ai', () => {
     return {
@@ -15,14 +30,15 @@ jest.mock('@google/generative-ai', () => {
             getGenerativeModel: jest.fn().mockReturnValue({
                 generateContent: jest.fn().mockResolvedValue({
                     response: {
-                        text: () => JSON.stringify([{
+                        text: () => JSON.stringify({
                             title: 'AI Discovered Concert',
                             description: 'Sample description',
                             date: new Date().toISOString(),
-                            location: 'London',
+                            locationName: 'London',
                             imageUrl: 'http://example.com/image.jpg',
-                            sourceUrl: 'http://example.com'
-                        }])
+                            sourceUrl: 'http://example.com',
+                            category: 'music'
+                        })
                     }
                 })
             })
@@ -76,9 +92,9 @@ describe('AI Discovery API Endpoints', () => {
                 .send({ query: 'Events in London' });
 
             expect(res.statusCode).toBe(200);
-            expect(res.body.newEvents).toHaveLength(1);
-            expect(res.body.newEvents[0].title).toBe('AI Discovered Concert');
-            expect(res.body.newEvents[0].latitude).toBe(51.5074);
+            expect(res.body.status).toBe('preview');
+            expect(res.body.event.title).toBe('AI Discovered Concert');
+            expect(res.body.event.latitude).toBe(51.5074);
         });
     });
 });

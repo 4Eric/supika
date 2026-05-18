@@ -383,6 +383,19 @@ const registerForEvent = async (req, res) => {
             // Acquire an advisory lock for this event slot specifically (using a generic integer hash technique) to prevent races
             await client.query('SELECT pg_advisory_xact_lock($1)', [slotId]);
 
+            const slotRes = await client.query(`
+                SELECT max_attendees,
+                (SELECT COUNT(*) FROM "Registrations" r WHERE r.time_slot_id = $1 AND (r.status = 'approved' OR r.status IS NULL)) as attendee_count
+                FROM "EventTimeSlots" WHERE id = $1
+            `, [slotId]);
+            if (slotRes.rows.length > 0) {
+                const { max_attendees, attendee_count } = slotRes.rows[0];
+                if (max_attendees && parseInt(attendee_count) >= parseInt(max_attendees)) {
+                    await client.query('ROLLBACK');
+                    return res.status(400).json({ message: 'Time slot is full' });
+                }
+            }
+
             const existingReg = await client.query(`SELECT status FROM "Registrations" WHERE user_id = $1 AND time_slot_id = $2`, [req.user.id, slotId]);
 
             if (existingReg.rows.length > 0) {

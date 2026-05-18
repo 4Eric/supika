@@ -5,10 +5,25 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // Mock external services to keep tests fast and deterministic
-jest.mock('../config/db', () => ({
-    pgPool: { query: jest.fn(), on: jest.fn(), end: jest.fn() },
-    poolPromise: Promise.resolve({ query: jest.fn() })
-}));
+jest.mock('../config/db', () => {
+    const mockPoolObj = {
+        query: jest.fn(),
+        connect: jest.fn().mockImplementation(function() {
+            return Promise.resolve({
+                query: (sql, params) => {
+                    if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return Promise.resolve({});
+                    return mockPoolObj.query(sql, params);
+                },
+                release: jest.fn()
+            });
+        }),
+        release: jest.fn()
+    };
+    return {
+        pgPool: { query: jest.fn(), on: jest.fn(), end: jest.fn() },
+        poolPromise: Promise.resolve(mockPoolObj)
+    };
+});
 jest.mock('../utils/mailer', () => ({
     sendPasswordResetEmail: jest.fn().mockResolvedValue(true)
 }));
@@ -100,6 +115,7 @@ describe('Auth API Endpoints', () => {
                 .post('/api/auth/login')
                 .send({ email: 'test@supika.app', password: 'Password123!' });
 
+            if (res.statusCode !== 200) throw new Error('LOGIN FAILED: ' + JSON.stringify(res.body));
             expect(res.statusCode).toBe(200);
             expect(res.body).toHaveProperty('token');
             expect(res.body).toHaveProperty('refreshToken');

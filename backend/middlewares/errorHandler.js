@@ -2,6 +2,7 @@ const logger = require('../utils/logger');
 const { error } = require('../utils/response');
 
 const errorHandler = (err, req, res, next) => {
+    console.error('GLOBAL ERROR CAUGHT:', err);
     logger.error({
         reqId: req.id,
         method: req.method,
@@ -29,7 +30,7 @@ const errorHandler = (err, req, res, next) => {
         ? 'Internal server error'
         : err.message || 'Internal server error';
 
-    error(res, message, err.statusCode || 500, err.code || 'INTERNAL_ERROR');
+    error(res, message, err.statusCode || err.status || 500, err.code || 'INTERNAL_ERROR');
 };
 
 module.exports = errorHandler;

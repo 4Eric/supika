@@ -2,9 +2,17 @@ require('dotenv').config({ path: __dirname + '/../.env' });
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-const DB = process.env.DATABASE_URL;
+const DB = process.argv[2] || process.env.DATABASE_URL;
 
-const pool = new Pool({ connectionString: DB, ssl: false });
+if (!DB) {
+    console.error('❌ No DATABASE_URL found. Pass it as an argument or set it in .env');
+    process.exit(1);
+}
+
+const pool = new Pool({
+    connectionString: DB,
+    ssl: DB.match(/localhost|127\.0\.0\.1/) ? false : { rejectUnauthorized: false }
+});
 
 async function run() {
     // First show all admin users

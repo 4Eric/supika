@@ -85,8 +85,9 @@ const login = async (req, res) => {
             user: mapToCamelCase({ id: user.id, username: user.username, email: user.email, role: user.role, avatar_url: user.avatar_url })
         });
     } catch (error) {
+        console.log('LOGIN ERROR STACK:', error ? error.stack : error);
         console.error('Login error:', error);
-        res.status(500).json({ message: 'Internal server error during login' });
+        res.status(500).json({ message: 'Internal server error during login', error: error?.message, stack: error?.stack });
     }
 };
 

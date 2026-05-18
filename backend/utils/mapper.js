@@ -10,7 +10,7 @@ const toCamelCase = (snakeStr) => {
 const mapToCamelCase = (obj) => {
     if (Array.isArray(obj)) {
         return obj.map(v => mapToCamelCase(v));
-    } else if (obj !== null && obj.constructor === Object) {
+    } else if (obj !== null && obj !== undefined && obj.constructor === Object) {
         return Object.keys(obj).reduce((acc, key) => {
             const camelKey = toCamelCase(key);
             acc[camelKey] = mapToCamelCase(obj[key]);

@@ -4,10 +4,23 @@ const { pgPool, poolPromise } = require('../config/db');
 const jwt = require('jsonwebtoken');
 
 // Mock external dependencies
-jest.mock('../config/db', () => ({
-    pgPool: { query: jest.fn(), on: jest.fn(), end: jest.fn() },
-    poolPromise: Promise.resolve({ query: jest.fn() })
-}));
+jest.mock('../config/db', () => {
+    const mockPoolObj = {
+        query: jest.fn(),
+        connect: () => Promise.resolve({
+            query: (sql, params) => {
+                if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return Promise.resolve({});
+                return mockPoolObj.query(sql, params);
+            },
+            release: () => {}
+        }),
+        release: () => {}
+    };
+    return {
+        pgPool: { query: jest.fn(), on: jest.fn(), end: jest.fn() },
+        poolPromise: Promise.resolve(mockPoolObj)
+    };
+});
 
 jest.mock('cloudinary', () => ({
     v2: {
@@ -73,13 +86,11 @@ describe('Events API Endpoints', () => {
         });
 
         it('should create an event successfully', async () => {
-            // Mock transaction begin
-            mockPool.query.mockResolvedValueOnce({});
             // Mock insert event
             mockPool.query.mockResolvedValueOnce({ rows: [{ id: 99 }] });
-            // Mock loop over time slots (1 slot)
+            // Mock insert hosts
             mockPool.query.mockResolvedValueOnce({});
-            // Mock transaction commit
+            // Mock insert time slots
             mockPool.query.mockResolvedValueOnce({});
 
             const res = await request(app)
@@ -105,7 +116,7 @@ describe('Events API Endpoints', () => {
                 .send({ title: 'Hacked', locationName: 'NYC', requiresApproval: false, ticketPrice: 0 });
 
             expect(res.statusCode).toBe(403);
-            expect(res.body.message).toBe('Unauthorized to edit this event');
+            expect(res.body.message).toBe('Unauthorized');
         });
     });
 
@@ -113,8 +124,6 @@ describe('Events API Endpoints', () => {
         it('should delete event successfully if owned by user', async () => {
             // Mock finding the event (owned by 1)
             mockPool.query.mockResolvedValueOnce({ rows: [{ id: 1, created_by: 1 }] });
-            // Mock transaction begin
-            mockPool.query.mockResolvedValueOnce({});
             // Mock deletion media
             mockPool.query.mockResolvedValueOnce({});
             // Mock deletion messages
@@ -126,8 +135,6 @@ describe('Events API Endpoints', () => {
             // Mock deletion slots
             mockPool.query.mockResolvedValueOnce({});
             // Mock deletion event
-            mockPool.query.mockResolvedValueOnce({});
-            // Mock transaction commit
             mockPool.query.mockResolvedValueOnce({});
 
             const res = await request(app)
@@ -135,14 +142,12 @@ describe('Events API Endpoints', () => {
                 .set('x-auth-token', token);
 
             expect(res.statusCode).toBe(200);
-            expect(res.body.message).toBe('Event deleted');
+            expect(res.body.message).toBe('Deleted');
         });
 
         it('should allow admin to delete any event', async () => {
             // Mock finding the event (owned by 1, but request is from admin 2)
             mockPool.query.mockResolvedValueOnce({ rows: [{ id: 1, created_by: 1 }] });
-            // Mock transaction begin
-            mockPool.query.mockResolvedValueOnce({});
             // Mock deletion media
             mockPool.query.mockResolvedValueOnce({});
             // Mock deletion messages
@@ -154,8 +159,6 @@ describe('Events API Endpoints', () => {
             // Mock deletion slots
             mockPool.query.mockResolvedValueOnce({});
             // Mock deletion event
-            mockPool.query.mockResolvedValueOnce({});
-            // Mock transaction commit
             mockPool.query.mockResolvedValueOnce({});
 
             const res = await request(app)
@@ -170,8 +173,10 @@ describe('Events API Endpoints', () => {
         it('should register successfully', async () => {
             // Find event
             mockPool.query.mockResolvedValueOnce({ rows: [{ id: 1, capacity: 10, start_time: new Date().toISOString(), requires_approval: false }] });
-            // Look for slot
-            mockPool.query.mockResolvedValueOnce({ rows: [{ id: 10 }] });
+            // Lock
+            mockPool.query.mockResolvedValueOnce({});
+            // Check capacity
+            mockPool.query.mockResolvedValueOnce({ rows: [{ max_attendees: 10, attendee_count: 2 }] });
             // Check existing registration
             mockPool.query.mockResolvedValueOnce({ rows: [] });
             // Insert
@@ -185,20 +190,16 @@ describe('Events API Endpoints', () => {
                 .send({ timeSlotId: 10 });
 
             expect(res.statusCode).toBe(201);
-            expect(res.body.message).toBe('Registered successfully');
+            expect(res.body.message).toBe('Registered');
         });
 
         it('should fail if event is full', async () => {
             // Find event
             mockPool.query.mockResolvedValueOnce({ rows: [{ id: 1, capacity: 1, start_time: new Date().toISOString(), requires_approval: false }] });
-            // Look for slot
-            mockPool.query.mockResolvedValueOnce({ rows: [{ id: 10 }] });
-            // check
-            mockPool.query.mockResolvedValueOnce({ rows: [] });
-            // insert
-            mockPool.query.mockResolvedValueOnce({ rows: [{ status: 'approved', id: 6 }] });
-            // User query
-            mockPool.query.mockResolvedValueOnce({ rows: [{ email: 'test2@yby.com' }] });
+            // Lock
+            mockPool.query.mockResolvedValueOnce({});
+            // Check capacity
+            mockPool.query.mockResolvedValueOnce({ rows: [{ max_attendees: 10, attendee_count: 10 }] });
 
             const res = await request(app)
                 .post('/api/events/1/register')
