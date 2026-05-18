@@ -1,6 +1,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { poolPromise } = require('../config/db');
 const axios = require('axios');
+const cacheService = require('./cacheService');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const EFINDER_USER_ID = parseInt(process.env.EFINDER_USER_ID);
@@ -13,6 +14,11 @@ const EFINDER_USER_ID = parseInt(process.env.EFINDER_USER_ID);
 
 // Geocode a location name → lat/lng using Nominatim (with progressive fallback)
 async function geocode(locationName) {
+    if (!locationName) return null;
+    const cacheKey = `geocode_${locationName.toLowerCase()}`;
+    const cached = cacheService.get(cacheKey);
+    if (cached) return cached;
+
     // Build progressively simpler search strings
     const attempts = [
         locationName,
@@ -32,10 +38,12 @@ async function geocode(locationName) {
             });
             if (res.data && res.data.length > 0) {
                 console.log(`[eFinder] Geocoded "${q}" → ${res.data[0].lat}, ${res.data[0].lon}`);
-                return { lat: parseFloat(res.data[0].lat), lng: parseFloat(res.data[0].lon) };
+                const coords = { lat: parseFloat(res.data[0].lat), lng: parseFloat(res.data[0].lon) };
+                cacheService.set(cacheKey, coords, 86400); // 24 hours
+                return coords;
             }
         } catch (e) {
-            console.warn(`[eFinder] Geocode attempt failed for "${q}":`, e.message);
+            console.error(`[eFinder] Geocode attempt failed for "${q}":`, e.message);
         }
         // Nominatim rate limit: 1 req/sec
         await new Promise(r => setTimeout(r, 1100));
@@ -60,9 +68,15 @@ async function resolveEventImage(imageUrl, title, category) {
     // 1. Try the AI-provided URL
     if (imageUrl && imageUrl.startsWith('http')) {
         try {
+            const urlObj = new URL(imageUrl);
+            if (!['http:', 'https:'].includes(urlObj.protocol)) {
+                throw new Error('Invalid URL protocol');
+            }
+
             const res = await axios.head(imageUrl, {
                 timeout: 5000,
-                maxRedirects: 5,
+                maxRedirects: 3,
+                maxContentLength: 10 * 1024 * 1024,
                 validateStatus: (s) => s < 400,
                 headers: { 'User-Agent': 'Mozilla/5.0' }
             });
@@ -297,7 +311,6 @@ async function insertDiscoveredEvent(eventData) {
     `, [eventId, eventData.date]);
 
     // Invalidate cache
-    const cacheService = require('./cacheService');
     cacheService.del('all_events_upcoming');
 
     return {

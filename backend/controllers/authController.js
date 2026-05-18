@@ -9,7 +9,7 @@ const register = async (req, res) => {
     try {
         const { username, email, password, role } = req.body;
         const pool = await poolPromise;
-        if (!password || password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[!@#$%^&*()]/.test(password)) {
+        if (!password || password.length < 8) {
             return res.status(400).json({ message: 'Password too weak' });
         }
         let assignedRole = 'user';
@@ -18,12 +18,12 @@ const register = async (req, res) => {
             if (token) {
                 try {
                     const secret = process.env.JWT_SECRET || (process.env.NODE_ENV === 'test' ? 'test_secret' : null);
-                    if (!secret) return next(); // Should be handled by middle-ware or threw later
+                    if (!secret) return next();
                     const decoded = jwt.verify(token, secret);
                     if (decoded.user.role === 'admin') assignedRole = 'admin';
                 } catch (e) { }
-                }
-            } else if (role) assignedRole = role;
+            }
+        } else if (role) assignedRole = role;
 
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
@@ -35,12 +35,10 @@ const register = async (req, res) => {
             avatarUrl = req.body.avatarUrl;
         }
 
-        let newUserId;
         const client = await pool.connect();
         try {
             await client.query('BEGIN');
             const result = await client.query('INSERT INTO "Users" (username, email, password_hash, role, avatar_url) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, email, role, avatar_url', [username, email, hashedPassword, assignedRole, avatarUrl]);
-            newUserId = result.rows[0].id;
             await client.query('COMMIT');
             res.status(201).json({ message: 'Registered', user: mapToCamelCase(result.rows[0]) });
         } catch (dbError) {

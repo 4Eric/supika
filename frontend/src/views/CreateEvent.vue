@@ -8,14 +8,12 @@ import EventMap from '@/components/EventMap.vue'
 import TimeSlotManager from '@/components/TimeSlotManager.vue'
 import ImageUploadZone from '@/components/ImageUploadZone.vue'
 import { useThemeStore } from '@/stores/themeStore'
+import { useGeolocation } from '@/composables/useGeolocation'
 
 const router = useRouter()
 const themeStore = useThemeStore()
 const title = ref('')
 const description = ref('')
-const locationName = ref('')
-const latitude = ref(null)
-const longitude = ref(null)
 const imageFiles = ref([])
 const requiresApproval = ref(false)
 const ticketPrice = ref(0)
@@ -35,6 +33,8 @@ const errorMsg = ref('')
 
 const eventMapRef = ref(null)
 
+const { latitude, longitude, locationName, handleLocationSelected, lookupAddress, getUserLocation } = useGeolocation(errorMsg)
+
 onMounted(() => {
   if (navigator.geolocation) {
     navigator.geolocation.getCurrentPosition(
@@ -51,97 +51,6 @@ onMounted(() => {
     )
   }
 })
-
-const handleLocationSelected = async (latlng) => {
-  latitude.value = latlng.lat
-  longitude.value = latlng.lng
-
-  try {
-    const res = await axios.get(`https://nominatim.openstreetmap.org/reverse`, {
-      params: {
-        lat: latlng.lat,
-        lon: latlng.lng,
-        format: 'json',
-        'accept-language': 'en'
-      }
-    })
-    
-    if (res.data && res.data.display_name) {
-      locationName.value = res.data.display_name
-    }
-  } catch (error) {
-    console.error("Failed to reverse geocode:", error)
-  }
-}
-
-const lookupAddress = async () => {
-  if (!locationName.value) return
-  errorMsg.value = ''
-  
-  try {
-    const res = await axios.get(`https://nominatim.openstreetmap.org/search`, {
-      params: {
-        q: locationName.value,
-        format: 'json',
-        limit: 1,
-        'accept-language': 'en'
-      }
-    })
-    
-    if (res.data && res.data.length > 0) {
-      const { lat, lon } = res.data[0]
-      latitude.value = parseFloat(lat)
-      longitude.value = parseFloat(lon)
-      if (eventMapRef.value) {
-        eventMapRef.value.setPickerMarker(latitude.value, longitude.value)
-      }
-    } else {
-      errorMsg.value = "Address not found."
-    }
-  } catch (error) {
-    errorMsg.value = "Failed to lookup address."
-  }
-}
-
-const resolveAddress = async (lat, lng) => {
-  try {
-    const res = await axios.get(`https://nominatim.openstreetmap.org/reverse`, {
-      params: { lat, lon: lng, format: 'json', 'accept-language': 'en' }
-    });
-    if (res.data && res.data.display_name) {
-      locationName.value = res.data.display_name;
-    }
-  } catch (e) {
-    console.error("Reverse geocoding failed:", e);
-  }
-};
-
-const getUserLocation = () => {
-  if (!navigator.geolocation) {
-    errorMsg.value = "Geolocation is not supported by your browser.";
-    return;
-  }
-  const isSecure = window.isSecureContext || window.location.hostname === 'localhost';
-  if (!isSecure && window.location.protocol !== 'https:') {
-    errorMsg.value = "Mobile browsers require HTTPS for location features.";
-    return;
-  }
-  errorMsg.value = "Requesting permission...";
-  navigator.geolocation.getCurrentPosition(
-    async (position) => {
-      const { latitude: lat, longitude: lng } = position.coords;
-      latitude.value = lat;
-      longitude.value = lng;
-      if (eventMapRef.value) eventMapRef.value.setPickerMarker(lat, lng);
-      errorMsg.value = "";
-      await resolveAddress(lat, lng);
-    },
-    (error) => {
-      errorMsg.value = error.code === 1 ? "Permission denied." : "Unable to retrieve location: " + error.message;
-    },
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-  );
-};
 
 // Image upload logic moved to ImageUploadZone.vue
 
@@ -162,6 +71,18 @@ const buildEventFormData = () => {
   formData.append('timeSlots', JSON.stringify(validSlots));
   
   if (imageFiles.value) {
+    let sizeError = false;
+    imageFiles.value.forEach(file => {
+      if (file.size > 5 * 1024 * 1024 || !['image/jpeg', 'image/png'].includes(file.type)) {
+        sizeError = true;
+      }
+    });
+
+    if (sizeError) {
+      errorMsg.value = "Images must be JPG/PNG and under 5MB.";
+      return null;
+    }
+
     imageFiles.value.forEach(file => {
       formData.append('media', file, encodeURIComponent(file.name));
     });
@@ -189,7 +110,7 @@ const submitForm = async () => {
     });
     router.push(`/event/${res.data.id}`);
   } catch (error) {
-    errorMsg.value = error.response?.data?.message || "Failed to create event.";
+    errorMsg.value = error.response?.data?.message || error.message || "Failed to create event.";
   } finally {
     loading.value = false;
   }
@@ -208,16 +129,16 @@ const submitForm = async () => {
       <section class="form-section card">
         <h3 class="section-title"><span class="icon">📝</span> Basic Info</h3>
         <div class="form-group">
-          <label>Event Title</label>
-          <input type="text" v-model="title" class="form-control" required placeholder="Give it a catchy name..." />
+          <label for="event-title">Event Title</label>
+          <input type="text" id="event-title" v-model="title" class="form-control" required placeholder="Give it a catchy name..." />
         </div>
         <div class="form-group">
-          <label>Description</label>
-          <textarea v-model="description" class="form-control" required rows="4" placeholder="What's the vibe? Tell them more..."></textarea>
+          <label for="event-desc">Description</label>
+          <textarea id="event-desc" v-model="description" class="form-control" required rows="4" placeholder="What's the vibe? Tell them more..."></textarea>
         </div>
         <div class="form-group">
-          <label>Category</label>
-          <div class="category-grid">
+          <label id="cat-label">Category</label>
+          <div class="category-grid" aria-labelledby="cat-label">
             <button type="button" v-for="cat in [['music','🎵'],['sports','🏋️'],['art','🎨'],['tech','💻'],['food','🍕'],['comedy','😄'],['theater','🎭'],['festival','🎪'],['pet','🐾'],['other','✨']]" :key="cat[0]" class="cat-chip" :class="{ active: category === cat[0] }" @click="category = cat[0]">
               {{ cat[1] }} {{ cat[0] }}
             </button>
@@ -234,12 +155,12 @@ const submitForm = async () => {
       <section class="form-section card">
         <h3 class="section-title"><span class="icon">📍</span> Location</h3>
         <div class="form-group">
-          <label>Where</label>
+          <label for="location-search">Where</label>
           <div class="location-search">
-            <input type="text" v-model="locationName" class="form-control" required placeholder="Search an address..." />
+            <input type="text" id="location-search" v-model="locationName" class="form-control" required placeholder="Search an address..." />
             <div class="search-actions">
-              <button type="button" @click="lookupAddress" class="btn-search" title="Search address">🔍</button>
-              <button type="button" @click="getUserLocation" class="btn-search" title="Use my current location">📍</button>
+              <button type="button" @click="lookupAddress(eventMapRef)" class="btn-search" title="Search address">🔍</button>
+              <button type="button" @click="getUserLocation(eventMapRef)" class="btn-search" title="Use my current location">📍</button>
             </div>
           </div>
         </div>
@@ -257,15 +178,15 @@ const submitForm = async () => {
         <p class="section-hint">Keep it 0 for free events. Supika charges a 7% platform fee on paid tickets.</p>
         <div class="pricing-grid">
           <div class="form-group">
-            <label>Price (per person)</label>
+            <label for="ticket-price">Price (per person)</label>
             <div class="price-input-wrapper">
               <span class="currency-symbol">$</span>
-              <input type="number" v-model="ticketPrice" class="form-control price-input" min="0" step="0.01" />
+              <input type="number" id="ticket-price" v-model="ticketPrice" class="form-control price-input" min="0" step="0.01" />
             </div>
           </div>
           <div class="form-group">
-            <label>Currency</label>
-            <select v-model="currency" class="form-control">
+            <label for="ticket-currency">Currency</label>
+            <select id="ticket-currency" v-model="currency" class="form-control">
               <option value="CAD">CAD</option>
               <option value="USD">USD</option>
               <option value="EUR">EUR</option>

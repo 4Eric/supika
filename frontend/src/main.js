@@ -4,6 +4,7 @@ import App from './App.vue'
 import router from './router'
 import './style.css'
 import { setupAxiosInterceptors } from '@/utils/axiosInterceptor'
+import { useAuthStore } from '@/stores/auth'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -19,6 +20,10 @@ app.config.errorHandler = (err, instance, info) => {
 
 // Initialize axios interceptors
 setupAxiosInterceptors()
+
+// Initialize auth state (headers)
+const authStore = useAuthStore()
+authStore.init()
 
 app.mount('#app')
 

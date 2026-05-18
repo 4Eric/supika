@@ -1,9 +1,10 @@
+require('dotenv').config({ path: __dirname + '/../.env' });
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
-const DB = 'postgresql://postgres.qraknbnxcomqetpsoali:NhOv2gOYYhVSamjV@aws-1-us-east-2.pooler.supabase.com:5432/postgres';
+const DB = process.env.DATABASE_URL;
 
-const pool = new Pool({ connectionString: DB, ssl: { rejectUnauthorized: false } });
+const pool = new Pool({ connectionString: DB, ssl: false });
 
 async function run() {
     // First show all admin users
@@ -16,11 +17,11 @@ async function run() {
         return;
     }
 
-    // Update by role = admin (will catch the right user regardless of exact email)
-    const newHash = await bcrypt.hash('manage', 10);
+    // Update by email
+    const newHash = await bcrypt.hash('password123', 10);
     const updateRes = await pool.query(
-        'UPDATE "Users" SET password_hash = $1 WHERE role = $2 RETURNING id, username, email',
-        [newHash, 'admin']
+        'UPDATE "Users" SET password_hash = $1 WHERE email = $2 RETURNING id, username, email',
+        [newHash, 'admin@ybyvibe.com']
     );
     console.log('\n✅ Password updated for:');
     console.table(updateRes.rows);

@@ -109,11 +109,15 @@ const maybeAttendees = computed(() => publicAttendees.value.filter(a => a.rsvpSt
 const hasApprovedRegistration = computed(() => {
   return registeredSlots.value.some(s => s.status === 'approved')
 })
+const isOrganizer = computed(() => {
+  return authStore.user && event.value && event.value.createdBy == authStore.user.id
+})
+
 const canJoinGroupChat = computed(() => {
   if (!event.value || !selectedTimeSlot.value) return false
   
   // Organizer can join any slot's chat
-  if (event.value.createdBy === authStore.user?.id) return true
+  if (isOrganizer.value) return true
   
   // Check if approved for THIS specific slot
   return registeredSlots.value.some(s => s.slotId === selectedTimeSlot.value && s.status === 'approved')
@@ -472,7 +476,7 @@ const updateAttendeeStatus = async (userId, status) => {
 
           <!-- Attendee Management Panel (Creator Only) -->
           <AttendeeList 
-            v-if="showAttendees && event.createdBy === authStore.user?.id"
+            v-if="showAttendees && (event.createdBy === authStore.user?.id || authStore.user?.role === 'admin')"
             :attendees="attendees"
             :isCreator="true"
             :eventId="event.id"
@@ -502,13 +506,13 @@ const updateAttendeeStatus = async (userId, status) => {
         <div class="action-sidebar">
           <div class="action-panel glass-panel">
             <template v-if="authStore.isAuthenticated">
-              <div class="role-actions" v-if="event.createdBy === authStore.user?.id">
+              <div class="role-actions" v-if="isOrganizer">
                 <h4 class="action-title">Organizer Actions</h4>
                 <button @click="showAttendees = !showAttendees" class="action-btn outline-btn">
                   👥 Manage Attendees ({{ attendees.length }})
                 </button>
               </div>
-              <div class="role-actions" v-else>
+              <div class="participant-actions">
                 <div v-if="selectedTimeSlot && event.timeSlots">
                   <div class="slot-summary" v-if="event.timeSlots.find(s => s.id === selectedTimeSlot)">
                      Selected Slot: <strong>{{ new Date(event.timeSlots.find(s => s.id === selectedTimeSlot).startTime).toLocaleString([], {weekday: 'short', hour: '2-digit', minute:'2-digit'}) }}</strong>
@@ -560,13 +564,13 @@ const updateAttendeeStatus = async (userId, status) => {
               </div>
 
               <!-- Mobile prompt: no slot selected yet -->
-              <div v-if="!selectedTimeSlot && event.createdBy !== authStore.user?.id && authStore.isAuthenticated" class="select-slot-prompt">
+              <div v-if="!selectedTimeSlot && !isOrganizer && authStore.isAuthenticated" class="select-slot-prompt">
                 <span class="prompt-icon">👆</span>
                 <p>Select a time slot to register</p>
               </div>
 
               <!-- Group Chat Action -->
-              <div class="feature-divider" v-if="canJoinGroupChat || (selectedTimeSlot && !isRegisteredForSelected && event.createdBy !== authStore.user?.id)"></div>
+              <div class="feature-divider" v-if="canJoinGroupChat || (selectedTimeSlot && !isRegisteredForSelected && !isOrganizer)"></div>
               
               <div class="group-chat-action" v-if="canJoinGroupChat">
                 <button @click="router.push(`/group-chat/${event.id}/${selectedTimeSlot}`)" class="action-btn highlight-btn">
@@ -574,7 +578,7 @@ const updateAttendeeStatus = async (userId, status) => {
                 </button>
                 <p class="feature-hint">Unlocked for this time slot!</p>
               </div>
-              <div class="group-chat-action" v-else-if="selectedTimeSlot && !isRegisteredForSelected && event.createdBy !== authStore.user?.id">
+              <div class="group-chat-action" v-else-if="selectedTimeSlot && !isRegisteredForSelected && !isOrganizer">
                  <p class="feature-hint locked-hint"><span class="icon">🔒</span> Register to unlock group chat</p>
               </div>
             </template>
@@ -751,11 +755,10 @@ const updateAttendeeStatus = async (userId, status) => {
 .action-panel.glass-panel {
   transform: translateZ(0);
   transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease;
-  transform-style: preserve-3d;
 }
 @media (min-width: 1024px) {
   .action-panel.glass-panel:hover {
-    transform: translateZ(6px);
+    transform: translateY(-2px);
     box-shadow: 0 24px 60px -10px rgba(0,0,0,0.5), 0 0 0 1px rgba(56,189,248,0.15);
   }
 }

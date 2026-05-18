@@ -24,3 +24,9 @@ Thumbs.db
 
 # Build output
 frontend/dist/
+
+# Playwright Test Output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

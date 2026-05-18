@@ -14,7 +14,7 @@ const requestLogger = (req, res, next) => {
             url: req.originalUrl,
             status: res.statusCode,
             duration: `${duration}ms`,
-            userId: req.user?.userId || 'guest',
+            userId: req.user?.id || 'guest',
             ip: req.ip
         }, `${req.method} ${req.originalUrl} [${res.statusCode}] - ${duration}ms`);
     });

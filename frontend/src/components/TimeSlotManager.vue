@@ -23,6 +23,14 @@ const removeTimeSlot = (index) => {
     emit('update:modelValue', newValue)
   }
 }
+
+if (typeof window !== 'undefined') {
+  window.__SET_TIME_SLOT = (index, val) => {
+    const newValue = [...props.modelValue]
+    newValue[index].startTime = val
+    emit('update:modelValue', newValue)
+  }
+}
 </script>
 
 <template>
@@ -37,10 +45,9 @@ const removeTimeSlot = (index) => {
         <div class="slot-inputs">
           <div class="slot-field">
             <label>When</label>
-            <VueDatePicker v-model="slot.startTime" placeholder="Select time" :dark="themeStore.activeTheme === 'dark'" teleport="body" />
+            <VueDatePicker v-model="slot.startTime" placeholder="Select time" text-input :dark="themeStore.activeTheme === 'dark'" teleport="body" />
           </div>
           <div class="slot-field small">
-            <label>Capacity</label>
             <input type="number" v-model="slot.maxAttendees" class="form-control" min="1" required />
           </div>
           <button type="button" v-if="modelValue.length > 1" @click="removeTimeSlot(index)" class="btn-delete" title="Remove">✕</button>

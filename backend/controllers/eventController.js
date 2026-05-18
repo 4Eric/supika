@@ -375,24 +375,37 @@ const registerForEvent = async (req, res) => {
             if (s.rows.length > 0) slotId = s.rows[0].id;
         }
 
-        // Check if already registered
-        const existingReg = await pool.query(`SELECT status FROM "Registrations" WHERE user_id = $1 AND time_slot_id = $2`, [req.user.id, slotId]);
-
+        const client = await pool.connect();
         let currentStatus;
-        if (existingReg.rows.length > 0) {
-            const regRes = await pool.query(`
-                UPDATE "Registrations" SET status = $1, rsvp_status = $2
-                WHERE user_id = $3 AND time_slot_id = $4
-                RETURNING status, ticket_token, rsvp_status
-            `, [event.requires_approval ? 'pending' : 'approved', finalRsvpStatus, req.user.id, slotId]);
-            currentStatus = regRes.rows[0].status;
-        } else {
-            const regRes = await pool.query(`
-                INSERT INTO "Registrations" (user_id, event_id, time_slot_id, status, rsvp_status) 
-                VALUES ($1, $2, $3, $4, $5)
-                RETURNING status, ticket_token, rsvp_status
-            `, [req.user.id, event.id, slotId, event.requires_approval ? 'pending' : 'approved', finalRsvpStatus]);
-            currentStatus = regRes.rows[0].status;
+        try {
+            await client.query('BEGIN');
+            
+            // Acquire an advisory lock for this event slot specifically (using a generic integer hash technique) to prevent races
+            await client.query('SELECT pg_advisory_xact_lock($1)', [slotId]);
+
+            const existingReg = await client.query(`SELECT status FROM "Registrations" WHERE user_id = $1 AND time_slot_id = $2`, [req.user.id, slotId]);
+
+            if (existingReg.rows.length > 0) {
+                const regRes = await client.query(`
+                    UPDATE "Registrations" SET status = $1, rsvp_status = $2
+                    WHERE user_id = $3 AND time_slot_id = $4
+                    RETURNING status, ticket_token, rsvp_status
+                `, [event.requires_approval ? 'pending' : 'approved', finalRsvpStatus, req.user.id, slotId]);
+                currentStatus = regRes.rows[0].status;
+            } else {
+                const regRes = await client.query(`
+                    INSERT INTO "Registrations" (user_id, event_id, time_slot_id, status, rsvp_status) 
+                    VALUES ($1, $2, $3, $4, $5)
+                    RETURNING status, ticket_token, rsvp_status
+                `, [req.user.id, event.id, slotId, event.requires_approval ? 'pending' : 'approved', finalRsvpStatus]);
+                currentStatus = regRes.rows[0].status;
+            }
+            await client.query('COMMIT');
+        } catch (txError) {
+            await client.query('ROLLBACK');
+            throw txError;
+        } finally {
+            client.release();
         }
 
         const u = await pool.query('SELECT email FROM "Users" WHERE id = $1', [req.user.id]);
@@ -400,7 +413,7 @@ const registerForEvent = async (req, res) => {
 
         invalidateEventCaches(req.params.id);
 
-        res.json({ message: 'Registered' });
+        res.status(201).json({ message: 'Registered' });
     } catch (e) {
         console.error('Registration failed:', e);
         res.status(500).json({ message: 'Registration failed' });
