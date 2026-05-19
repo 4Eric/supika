@@ -824,6 +824,7 @@ const updateAttendeeStatus = async (userId, status) => {
   max-width: 1200px;
   margin: -40px auto 0;
   padding: 0 1rem;
+  padding-bottom: calc(220px + env(safe-area-inset-bottom)); /* Room for fixed action sidebar + app dock */
   z-index: 10;
   display: flex;
   flex-direction: column;
@@ -1103,7 +1104,8 @@ const updateAttendeeStatus = async (userId, status) => {
   bottom: 0; left: 0; right: 0;
   z-index: 100;
   padding: 1rem;
-  background: linear-gradient(to top, rgba(9,9,11,1) 70%, rgba(9,9,11,0));
+  padding-bottom: max(6.5rem, calc(6rem + env(safe-area-inset-bottom))); /* Clears the App.vue dock */
+  background: linear-gradient(to top, var(--bg-color) 80%, transparent);
   pointer-events: none; /* Let touches pass through gradient */
 }
 .action-panel {
@@ -1196,7 +1198,7 @@ const updateAttendeeStatus = async (userId, status) => {
 @media (min-width: 992px) {
   .hero-section { height: 50vh; max-height: 500px; border-radius: 24px; margin-top: 2rem; }
   .event-detail-page { padding-bottom: 2rem; }
-  .main-layout { flex-direction: row; margin-top: 2rem; align-items: flex-start; }
+  .main-layout { flex-direction: row; margin-top: 2rem; align-items: flex-start; padding-bottom: 0; }
   .event-body { flex: 1; min-width: 0; padding: 0; background: transparent; border-radius: 0; padding-right: 2rem; }
   
   .action-sidebar {
@@ -1298,7 +1300,7 @@ const updateAttendeeStatus = async (userId, status) => {
 /* Floating Comments Button */
 .floating-comments-btn {
   position: fixed;
-  bottom: 6rem;
+  bottom: calc(180px + env(safe-area-inset-bottom)); /* Lift above the fixed action sidebar on mobile */
   right: 1.5rem;
   background: var(--card-bg);
   backdrop-filter: blur(12px);
