@@ -287,9 +287,11 @@ const handleSubmit = async () => {
 }
 .preset-options {
   display: flex;
-  justify-content: center;
   gap: 0.5rem;
-  flex-wrap: wrap;
+  overflow-x: auto;
+  padding-bottom: 0.5rem;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 .preset-item {
   width: 40px;
@@ -507,6 +509,7 @@ const handleSubmit = async () => {
   .auth-card {
     padding: 2rem 1.25rem;
     border-radius: 1.25rem;
+    margin-bottom: 5rem; /* Clear the bottom dock */
   }
 
   .auth-logo {

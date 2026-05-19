@@ -317,6 +317,7 @@ const goToHost = (id) => {
           <span class="chip-label">{{ cat.label.charAt(0).toUpperCase() + cat.label.slice(1) }}</span>
         </button>
       </div>
+      <div class="scroll-fade"></div>
     </div>
 
     <!-- Happening Now -->
@@ -361,12 +362,12 @@ const goToHost = (id) => {
       <div v-if="errorEvents.config" style="font-size: 10px; color: #666; word-break: break-all;">
         Target: {{ errorEvents.config.url }}
       </div>
-      <button @click="fetchEvents()" class="btn-sm" style="margin-top: 1rem;">Retry</button>
+      <button @click="fetchEvents()" class="btn btn-secondary" style="margin-top: 1rem;">Retry</button>
     </div>
     <div v-else-if="feedEvents.length === 0" class="no-results">
       <h3>No events found 🕵️</h3>
       <p>Try adjusting your search or date filters.</p>
-      <button @click="fetchEvents()" class="btn-sm" style="margin-top: 1rem;">Refresh Feed</button>
+      <button @click="fetchEvents()" class="btn btn-secondary" style="margin-top: 1rem;">Refresh Feed</button>
     </div>
 
     <!-- Masonry Waterfall Grid -->
@@ -484,7 +485,7 @@ const goToHost = (id) => {
   right: 0;
   bottom: 0;
   width: 40px;
-  background: linear-gradient(to right, rgba(9,9,11,0), rgba(9,9,11,1));
+  background: linear-gradient(to right, transparent, var(--bg-color));
   pointer-events: none;
 }
 .filter-pill {
@@ -516,10 +517,10 @@ const goToHost = (id) => {
   transform: scale(0.96);
 }
 .filter-pill.active {
-  background: rgba(56, 189, 248, 0.15);
-  color: #fff;
+  background: var(--selected-bg);
+  color: var(--selected-text);
   border-color: var(--primary-color);
-  box-shadow: 0 0 15px rgba(56, 189, 248, 0.3), inset 0 0 10px rgba(56, 189, 248, 0.1);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.15);
 }
 .filter-pill.active .filter-icon {
   text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
@@ -776,7 +777,7 @@ const goToHost = (id) => {
 }
 
 /* --- Category Chips --- */
-.category-chips-wrapper { overflow-x: auto; scrollbar-width: none; margin-bottom: 0.25rem; }
+.category-chips-wrapper { overflow-x: auto; scrollbar-width: none; margin-bottom: 0.25rem; position: relative; }
 .category-chips-wrapper::-webkit-scrollbar { display: none; }
 .category-chips {
   display: flex;

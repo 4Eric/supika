@@ -330,7 +330,7 @@ const submitForm = async () => {
 .create-container {
   max-width: 600px;
   margin: 0 auto;
-  padding: 2rem 1rem 6rem;
+  padding: 2rem 1rem 9rem;
 }
 
 .page-header {
@@ -372,7 +372,7 @@ const submitForm = async () => {
 
 .section-title {
   font-size: 1.25rem;
-  margin: 0;
+  margin: 0 0 0.75rem 0;
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -498,7 +498,7 @@ const submitForm = async () => {
   font-size: 0.85rem;
   color: var(--text-muted);
   margin-bottom: 1.5rem;
-  margin-top: -1rem;
+  margin-top: 0;
 }
 
 .pricing-grid {

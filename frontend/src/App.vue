@@ -96,6 +96,9 @@ const logout = () => {
   router.push('/login')
 }
 
+// Mobile "More" menu state
+const showMoreMenu = ref(false)
+
 // Map route names to dashboard titles
 const pageTitle = computed(() => {
   if (route.path === '/') return 'Discover'
@@ -113,7 +116,16 @@ const pageTitle = computed(() => {
   if (route.path.startsWith('/event/')) return 'Event Details'
   if (route.path.startsWith('/host/')) return 'Host Profile'
   if (route.path === '/host-landing') return 'Grow Your Tribe'
-  return 'Dashboard'
+  if (route.path === '/login') return ''
+  if (route.path === '/register') return ''
+  if (route.path === '/forgot-password') return ''
+  if (route.path === '/reset-password') return ''
+  return ''
+})
+
+// Hide page header on routes that don't need it
+const showPageHeader = computed(() => {
+  return pageTitle.value && route.path !== '/map'
 })
 </script>
 
@@ -139,14 +151,16 @@ const pageTitle = computed(() => {
           <router-link to="/my-events" class="nav-item" title="Calendar">
             <span class="icon">📅</span><span class="label">Calendar</span>
           </router-link>
-          <router-link to="/hosted" class="nav-item" title="Hosted">
+          <!-- Desktop-only nav items -->
+          <router-link to="/hosted" class="nav-item desktop-only" title="Hosted">
              <span class="icon">🎟️</span><span class="label">Hosted</span>
           </router-link>
           <router-link to="/my-messages" class="nav-item badge-container" title="Messages">
             <span class="icon">💬</span><span class="label">Messages</span>
             <span v-if="unreadCount > 0" class="unread-badge">{{ unreadCount }}</span>
           </router-link>
-          <router-link to="/host-landing" class="nav-item create-btn" title="Create Event">
+          <!-- Desktop-only create button -->
+          <router-link to="/host-landing" class="nav-item create-btn desktop-only" title="Create Event">
              <span class="icon">+</span><span class="label">Create</span>
           </router-link>
         </template>
@@ -166,9 +180,24 @@ const pageTitle = computed(() => {
           <div class="user-profile-badge" @click="router.push('/profile')" title="Profile">
             <div class="avatar">{{ authStore.user?.username.charAt(0).toUpperCase() }}</div>
           </div>
-          <button @click="logout" class="nav-item logout-btn" title="Logout">
+          <!-- Desktop-only logout -->
+          <button @click="logout" class="nav-item logout-btn desktop-only" title="Logout">
             <span class="icon">🚪</span>
           </button>
+          <!-- Mobile-only "More" menu trigger -->
+          <div class="mobile-more-wrapper mobile-only">
+            <button @click="showMoreMenu = !showMoreMenu" class="nav-item more-btn" title="More">
+              <span class="icon">⋯</span>
+            </button>
+            <Transition name="more-pop">
+              <div v-if="showMoreMenu" class="more-menu" @click="showMoreMenu = false">
+                <router-link to="/hosted" class="more-item">🎟️ My Hosted Events</router-link>
+                <router-link to="/host-landing" class="more-item">➕ Create Event</router-link>
+                <button @click="themeStore.toggleTheme" class="more-item">{{ themeStore.activeTheme === 'dark' ? '☀️' : '🌙' }} Toggle Theme</button>
+                <button @click="logout" class="more-item more-item--danger">🚪 Logout</button>
+              </div>
+            </Transition>
+          </div>
         </template>
         <template v-else>
           <router-link to="/login" class="nav-item login-link">
@@ -180,7 +209,7 @@ const pageTitle = computed(() => {
 
     <!-- Main Content Area -->
     <main class="main-content" :class="{ 'no-padding': route.path === '/map' }">
-      <div class="page-header" v-if="route.path !== '/map'">
+      <div class="page-header" v-if="showPageHeader">
         <h1 class="page-title">{{ pageTitle }}</h1>
       </div>
       <router-view />
@@ -508,20 +537,20 @@ const pageTitle = computed(() => {
 .slide-up-enter-active, .slide-up-leave-active { transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 .slide-up-enter-from, .slide-up-leave-to { transform: translateX(-50%) translateY(120%); opacity: 0; }
 
-/* Mobile Reponsiveness: Move island to bottom dock */
+/* Mobile Responsiveness: Move island to bottom dock */
 @media (max-width: 900px) {
   .dynamic-island {
     top: auto;
-    bottom: 1.5rem;
-    padding: 0.75rem;
-    width: 90%;
-    max-width: 400px;
-    justify-content: space-around;
-    gap: 0.5rem;
+    bottom: 1rem;
+    padding: 0.6rem 0.75rem;
+    width: auto;
+    max-width: 90%;
+    justify-content: center;
+    gap: 0.25rem;
   }
   
   .island-section {
-    gap: 0.25rem;
+    gap: 0.15rem;
   }
   
   .links-section {
@@ -532,14 +561,109 @@ const pageTitle = computed(() => {
   .search-bar-container, .logo-link, .theme-toggle-btn {
     display: none; /* Hide extra controls on mobile dock to save space */
   }
+  
+  /* Hide secondary nav items on mobile — moved to More menu */
+  .desktop-only {
+    display: none !important;
+  }
+  
+  .mobile-only {
+    display: flex;
+  }
+  
+  /* Bigger touch targets on mobile (44px min) */
+  .nav-item {
+    padding: 0.6rem 0.9rem;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  .nav-item .icon {
+    font-size: 1.3rem;
+  }
 
   .main-content {
-    padding: 3rem 1.5rem 8rem 1.5rem; /* Room for bottom dock */
+    padding: 2rem 1.25rem 7rem 1.25rem; /* Room for bottom dock */
   }
   
   .page-header {
-    margin-bottom: 2rem;
+    margin-bottom: 1rem;
   }
+}
+
+/* Desktop: hide mobile-only elements */
+@media (min-width: 901px) {
+  .mobile-only {
+    display: none !important;
+  }
+}
+
+/* Mobile "More" menu */
+.mobile-more-wrapper {
+  position: relative;
+}
+
+.more-menu {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: -8px;
+  background: var(--card-bg);
+  backdrop-filter: var(--card-blur);
+  -webkit-backdrop-filter: var(--card-blur);
+  border: 1px solid var(--border-light);
+  border-radius: 16px;
+  padding: 0.5rem;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 200px;
+  z-index: 1001;
+}
+
+.more-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  color: var(--text-main);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  background: none;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+
+.more-item:hover {
+  background: var(--input-bg);
+}
+
+.more-item--danger {
+  color: #ef4444;
+}
+
+.more-pop-enter-active { transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.more-pop-leave-active { transition: all 0.15s ease-in; }
+.more-pop-enter-from { opacity: 0; transform: translateY(8px) scale(0.95); }
+.more-pop-leave-to { opacity: 0; transform: translateY(8px) scale(0.95); }
+
+/* Active dot indicator for nav items */
+.nav-item.router-link-active::after {
+  content: '';
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--primary-color);
 }
 
 [data-theme="notion"] .logo-img,
