@@ -61,6 +61,9 @@ onMounted(async () => {
     return
   }
 
+  // Adjust body overscroll for mobile to prevent bouncy elastic scrolling on iOS when keyboard is up
+  document.body.style.overscrollBehavior = 'none'
+
   try {
     // Fetch basic event context
     const eventRes = await axios.get(`${API_URL}/api/events/${eventId}`)
@@ -81,6 +84,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (pollInterval) clearInterval(pollInterval)
+  document.body.style.overscrollBehavior = 'auto' // restore
 })
 
 const sendMessage = async () => {
@@ -320,8 +324,8 @@ const goBack = () => {
 
 @media (max-width: 768px) {
   .chat-container {
-    height: calc(100dvh - 100px);
-    margin: -1rem -0.75rem;
+    height: 100dvh;
+    margin: 0;
     padding: 0;
     max-width: 100vw;
   }
@@ -351,6 +355,7 @@ const goBack = () => {
   }
   .input-area {
     padding: 0.5rem 0.75rem;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
   }
   .input-area form {
     gap: 0.5rem;

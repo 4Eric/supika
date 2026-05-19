@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, defineProps } from 'vue'
+import { ref, onMounted, onUnmounted, computed, defineProps } from 'vue'
 import axios from 'axios'
 import { API_URL } from '@/config/api'
 import { useAuthStore } from '@/stores/auth'
@@ -44,12 +44,21 @@ onMounted(() => {
   }
 })
 
-// Watch for modal open to fetch if not yet loaded
+// Watch for modal open to fetch if not yet loaded and lock background scroll
 import { watch } from 'vue'
 watch(() => props.isOpen, (newVal) => {
-  if (newVal && comments.value.length === 0) {
-    fetchComments()
+  if (newVal) {
+    document.body.style.overscrollBehavior = 'none'
+    if (comments.value.length === 0) {
+      fetchComments()
+    }
+  } else {
+    document.body.style.overscrollBehavior = 'auto'
   }
+})
+
+onUnmounted(() => {
+  document.body.style.overscrollBehavior = 'auto'
 })
 
 const postComment = async () => {

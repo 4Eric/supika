@@ -127,12 +127,17 @@ const pageTitle = computed(() => {
 const showPageHeader = computed(() => {
   return pageTitle.value && route.path !== '/map'
 })
+
+// Immersive chat routes — hide bottom dock so it doesn't block the chat input
+const isImmersiveChat = computed(() => {
+  return route.path.startsWith('/chat/') || route.path.startsWith('/group-chat/')
+})
 </script>
 
 <template>
   <div class="app-container">
     <!-- Floating Glass Navigation (Island) -->
-    <nav class="dynamic-island">
+    <nav class="dynamic-island" :class="{ 'dock-hidden': isImmersiveChat }">
       <div class="island-section">
         <router-link to="/" class="logo-link">
           <img src="@/assets/supika-logo-refined.png" alt="Supika" class="logo-img" />
@@ -208,8 +213,8 @@ const showPageHeader = computed(() => {
     </nav>
 
     <!-- Main Content Area -->
-    <main class="main-content" :class="{ 'no-padding': route.path === '/map' }">
-      <div class="page-header" v-if="showPageHeader">
+    <main class="main-content" :class="{ 'no-padding': route.path === '/map', 'chat-mode': isImmersiveChat }">
+      <div class="page-header" v-if="showPageHeader && !isImmersiveChat">
         <h1 class="page-title">{{ pageTitle }}</h1>
       </div>
       <router-view />
@@ -588,6 +593,16 @@ const showPageHeader = computed(() => {
   
   .page-header {
     margin-bottom: 1rem;
+  }
+
+  /* Hide dock on immersive chat views so input box isn't blocked */
+  .dynamic-island.dock-hidden {
+    display: none;
+  }
+
+  /* Remove bottom padding when dock is hidden (chat mode) */
+  .main-content.chat-mode {
+    padding-bottom: 0;
   }
 }
 
