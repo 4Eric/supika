@@ -15,6 +15,14 @@ const checkInByToken = async (req, res) => {
             });
         }
 
+        // Validate UUID format to prevent Postgres throw on invalid QR strings
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        if (!uuidRegex.test(ticket_token)) {
+            return res.status(400).json({ 
+                error: { code: 'invalid_token', message: 'Invalid ticket token format' } 
+            });
+        }
+
         const pool = await poolPromise;
 
         // 2. Find the registration
@@ -46,14 +54,24 @@ const checkInByToken = async (req, res) => {
         );
 
         // Fetch user info to return friendly response
-        const userResult = await pool.query('SELECT username, email FROM "Users" WHERE id = $1', [registration.user_id]);
-        const user = userResult.rows[0];
+        let username = 'Guest';
+        let email = null;
+        
+        if (registration.user_id) {
+            const userResult = await pool.query('SELECT username, email FROM "Users" WHERE id = $1', [registration.user_id]);
+            if (userResult.rows.length > 0) {
+                username = userResult.rows[0].username;
+                email = userResult.rows[0].email;
+            }
+        } else if (registration.guest_nickname) {
+            username = registration.guest_nickname;
+        }
 
         res.json({
             message: 'Check-in successful',
             data: {
-                username: user.username,
-                email: user.email,
+                username,
+                email,
                 check_in_time: result.rows[0].check_in_time
             }
         });
