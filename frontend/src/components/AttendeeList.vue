@@ -1,7 +1,7 @@
 <script setup>
 import { defineProps, defineEmits, ref, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { Html5QrcodeScanner, Html5QrcodeSupportedFormats } from 'html5-qrcode'
+import { QrcodeStream } from 'vue-qrcode-reader'
 import axios from 'axios'
 import { API_URL } from '@/config/api'
 import { useAuthStore } from '@/stores/auth'
@@ -17,7 +17,6 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const isScanning = ref(false)
-const scanner = ref(null)
 const scanMessage = ref('')
 const scanSuccess = ref(false)
 
@@ -39,32 +38,19 @@ const handleManualCheckIn = async (userId) => {
 
 const startScanner = () => {
   isScanning.value = true
-  scanMessage.value = 'Preparing camera...'
+  scanMessage.value = 'Scanner active. Center the QR code.'
   scanSuccess.value = false
-  
-  setTimeout(() => {
-    const config = { 
-      fps: 10, 
-      qrbox: { width: 250, height: 250 },
-      formatsToSupport: [ Html5QrcodeSupportedFormats.QR_CODE ]
-    };
-    
-    scanner.value = new Html5QrcodeScanner("qr-reader", config, /* verbose= */ false);
-    scanner.value.render(onScanSuccess, onScanFailure);
-    scanMessage.value = 'Scanner active. Center the QR code.'
-  }, 100);
 }
 
 const stopScanner = () => {
-  if (scanner.value) {
-    scanner.value.clear().catch(err => console.error('Failed to clear scanner', err));
-    scanner.value = null;
-  }
-  isScanning.value = false;
-  scanMessage.value = '';
+  isScanning.value = false
+  scanMessage.value = ''
 }
 
-const onScanSuccess = async (decodedText) => {
+const onDetect = async (detectedCodes) => {
+  if (!detectedCodes || detectedCodes.length === 0) return
+  
+  const decodedText = detectedCodes[0].rawValue
   try {
     scanMessage.value = 'Verifying ticket...'
     const res = await axios.post(`${API_URL}/api/v1/events/${props.eventId}/check-in`, {
@@ -87,7 +73,7 @@ const onScanSuccess = async (decodedText) => {
     const errorMsg = err.response?.data?.error?.message || err.response?.data?.message || 'Check-in failed'
     scanMessage.value = `❌ ${errorMsg}`
     
-    // Resume scanning after 3 seconds
+    // Resume scanning message after 3 seconds
     setTimeout(() => {
       if (isScanning.value) {
         scanMessage.value = 'Scanner active. Center the QR code.'
@@ -96,8 +82,26 @@ const onScanSuccess = async (decodedText) => {
   }
 }
 
-const onScanFailure = (error) => {
-  // Silent-ish to avoid console noise
+const onInit = (promise) => {
+  promise.catch(error => {
+    if (error.name === 'NotAllowedError') {
+      scanMessage.value = '❌ Camera access denied'
+    } else if (error.name === 'NotFoundError') {
+      scanMessage.value = '❌ No camera on this device'
+    } else if (error.name === 'NotSupportedError') {
+      scanMessage.value = '❌ Secure context required (HTTPS, localhost)'
+    } else if (error.name === 'NotReadableError') {
+      scanMessage.value = '❌ Camera is already in use'
+    } else if (error.name === 'OverconstrainedError') {
+      scanMessage.value = '❌ Installed cameras are not suitable'
+    } else if (error.name === 'StreamApiNotSupportedError') {
+      scanMessage.value = '❌ Stream API is not supported in this browser'
+    } else if (error.name === 'InsecureContextError') {
+      scanMessage.value = '❌ Camera access requires HTTPS'
+    } else {
+      scanMessage.value = `❌ Camera error: ${error.message}`
+    }
+  })
 }
 
 const getAvatarUrl = (url) => {
@@ -107,9 +111,7 @@ const getAvatarUrl = (url) => {
 }
 
 onBeforeUnmount(() => {
-  if (scanner.value) {
-    scanner.value.clear().catch(() => {});
-  }
+  stopScanner()
 })
 </script>
 
@@ -163,7 +165,9 @@ onBeforeUnmount(() => {
           <h3>Ticket Scanner</h3>
           <button @click="stopScanner" class="close-btn">&times;</button>
         </div>
-        <div id="qr-reader"></div>
+        <div class="qr-reader-wrapper">
+          <qrcode-stream @detect="onDetect" @init="onInit"></qrcode-stream>
+        </div>
         <div class="scan-status" :class="{ 'success': scanSuccess, 'error': scanMessage.startsWith('❌') }">
           {{ scanMessage }}
         </div>
@@ -250,14 +254,14 @@ onBeforeUnmount(() => {
   margin-bottom: 20px;
 }
 
-#qr-reader {
+.qr-reader-wrapper {
   border: none !important;
   border-radius: 12px;
   overflow: hidden;
-}
-
-#qr-reader__dashboard {
-  display: none !important;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1; /* Keep it square like a scanner window */
+  background: #000;
 }
 
 .scan-status {
