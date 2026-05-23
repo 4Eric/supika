@@ -27,6 +27,7 @@ const showUploadModal = ref(false)
 const showCancelConfirm = ref(false)
 const cancelTargetSlotId = ref(null) // locked when cancel modal opens
 const showTicketModal = ref(false)
+const showMobileActions = ref(false)
 
 const { loading, execute: executeFetchEvent } = useAsync(async (id) => {
   const res = await axios.get(`${API_URL}/api/events/${id}`)
@@ -518,69 +519,58 @@ const updateAttendeeStatus = async (userId, status) => {
                      Selected Slot: <strong>{{ new Date(event.timeSlots.find(s => s.id === selectedTimeSlot).startTime).toLocaleString([], {weekday: 'short', hour: '2-digit', minute:'2-digit'}) }}</strong>
                   </div>
                   <div v-if="isRegisteredForSelected" class="status-alert" :class="selectedSlotStatus">
-                    {{ selectedSlotStatus === 'pending' ? '⏳ Pending Organizer Approval' : (selectedSlotStatus === 'rejected' ? '❌ Registration Rejected' : '✅ You are registered!') }}
+                    {{ selectedSlotStatus === 'pending' ? '⏳ Pending' : (selectedSlotStatus === 'rejected' ? '❌ Rejected' : '✅ Registered') }}
                   </div>
                 </div>
 
-                <div class="main-actions-grid" v-if="selectedTimeSlot">
+                <!-- Primary CTA row (always visible) -->
+                <div class="mobile-primary-row" v-if="selectedTimeSlot">
                   <template v-if="!isRegisteredForSelected">
-                    <!-- RSVP Type Selector -->
                     <div class="rsvp-selector" v-if="!event.ticketPrice || Number(event.ticketPrice) === 0">
-                      <button 
-                        class="rsvp-btn" 
-                        :class="{ active: rsvpStatus === 'going' }"
-                        @click="rsvpStatus = 'going'"
-                      >
-                        🔥 Going
-                      </button>
-                      <button 
-                        class="rsvp-btn" 
-                        :class="{ active: rsvpStatus === 'maybe' }"
-                        @click="rsvpStatus = 'maybe'"
-                      >
-                        🤔 Maybe
-                      </button>
+                      <button class="rsvp-btn" :class="{ active: rsvpStatus === 'going' }" @click="rsvpStatus = 'going'">🔥</button>
+                      <button class="rsvp-btn" :class="{ active: rsvpStatus === 'maybe' }" @click="rsvpStatus = 'maybe'">🤔</button>
                     </div>
-
-                    <button v-if="event.ticketPrice > 0" @click="handleCheckout" :disabled="checkingOut || !selectedTimeSlot" class="action-btn primary-btn pulse-glow">
-                      {{ checkingOut ? 'Redirecting...' : `Buy Ticket - $${event.ticketPrice}` }}
+                    <button v-if="event.ticketPrice > 0" @click="handleCheckout" :disabled="checkingOut || !selectedTimeSlot" class="action-btn primary-btn pulse-glow mobile-primary-cta">
+                      {{ checkingOut ? 'Processing...' : `Buy - $${event.ticketPrice}` }}
                     </button>
-                    <button v-else @click="registerForEvent" :disabled="registering || !selectedTimeSlot" class="action-btn primary-btn pulse-glow">
-                      {{ registering ? 'Registering...' : 'Complete Registration' }}
+                    <button v-else @click="registerForEvent" :disabled="registering || !selectedTimeSlot" class="action-btn primary-btn pulse-glow mobile-primary-cta">
+                      {{ registering ? 'Registering...' : 'Register' }}
                     </button>
                   </template>
-                  <button v-else @click="deregisterForEvent" :disabled="registering" class="action-btn danger-btn">
-                    Cancel Registration
-                  </button>
-
-                  <button v-if="isRegisteredForSelected && selectedSlotStatus === 'approved'" @click="showTicketModal = true" class="action-btn highlight-btn">
-                    🎟️ Show Ticket (QR)
-                  </button>
-                  
-                  <button v-if="authStore.isAuthenticated" @click="router.push(`/chat/${event.id}/${event.createdBy}`)" class="action-btn secondary-btn">
-                    💬 Chat Organizer
+                  <template v-else>
+                    <button @click="deregisterForEvent" :disabled="registering" class="action-btn danger-btn mobile-primary-cta">
+                      Cancel
+                    </button>
+                  </template>
+                  <!-- Expand chevron for secondary actions -->
+                  <button v-if="isRegisteredForSelected" class="mobile-expand-btn" @click="showMobileActions = !showMobileActions" :class="{ expanded: showMobileActions }">
+                    <span class="chevron-icon">‹</span>
                   </button>
                 </div>
+
+                <!-- Secondary actions drawer (collapsed on mobile/desktop) -->
+                <Transition name="drawer-slide">
+                  <div class="mobile-secondary-drawer" v-if="showMobileActions && selectedTimeSlot && isRegisteredForSelected">
+                    <button v-if="selectedSlotStatus === 'approved'" @click="showTicketModal = true" class="action-btn highlight-btn">
+                      🎟️ Show Ticket (QR)
+                    </button>
+                    <button @click="router.push(`/chat/${event.id}/${event.createdBy}`)" class="action-btn secondary-btn">
+                      💬 Chat Organizer
+                    </button>
+                    <button v-if="canJoinGroupChat" @click="router.push(`/group-chat/${event.id}/${selectedTimeSlot}`)" class="action-btn highlight-btn">
+                      💬 Group Chat
+                    </button>
+                  </div>
+                </Transition>
+
               </div>
 
-              <!-- Mobile prompt: no slot selected yet -->
+              <!-- Prompt: no slot selected yet -->
               <div v-if="!selectedTimeSlot && !isOrganizer && authStore.isAuthenticated" class="select-slot-prompt">
                 <span class="prompt-icon">👆</span>
                 <p>Select a time slot to register</p>
               </div>
 
-              <!-- Group Chat Action -->
-              <div class="feature-divider" v-if="canJoinGroupChat || (selectedTimeSlot && !isRegisteredForSelected && !isOrganizer)"></div>
-              
-              <div class="group-chat-action" v-if="canJoinGroupChat">
-                <button @click="router.push(`/group-chat/${event.id}/${selectedTimeSlot}`)" class="action-btn highlight-btn">
-                  <span class="icon">💬</span> Open Group Chat
-                </button>
-                <p class="feature-hint">Unlocked for this time slot!</p>
-              </div>
-              <div class="group-chat-action" v-else-if="selectedTimeSlot && !isRegisteredForSelected && !isOrganizer">
-                 <p class="feature-hint locked-hint"><span class="icon">🔒</span> Register to unlock group chat</p>
-              </div>
             </template>
             <div v-else class="auth-prompt">
               <h3>Join the Vibe</h3>
@@ -1103,39 +1093,37 @@ const updateAttendeeStatus = async (userId, status) => {
   position: fixed;
   bottom: 0; left: 0; right: 0;
   z-index: 100;
-  padding: 1rem;
-  padding-bottom: max(6.5rem, calc(6rem + env(safe-area-inset-bottom))); /* Clears the App.vue dock */
-  background: linear-gradient(to top, var(--bg-color) 80%, transparent);
-  pointer-events: none; /* Let touches pass through gradient */
+  padding: 0.75rem 1rem;
+  padding-bottom: max(5.5rem, calc(5rem + env(safe-area-inset-bottom)));
+  background: linear-gradient(to top, var(--bg-color) 70%, transparent);
+  pointer-events: none;
 }
 .action-panel {
-  pointer-events: auto; /* Re-enable for the actual panel */
-  border-radius: 20px;
-  padding: 1.25rem;
-  background: var(--card-bg); /* Slightly darker for contrast */
+  pointer-events: auto;
+  border-radius: 16px;
+  padding: 0.75rem 1rem;
+  background: var(--card-bg);
 }
 
 .action-title { font-family: 'Outfit', sans-serif; color: var(--text-main); margin-bottom: 1rem; font-size: 1.2rem; }
-.slot-summary { font-size: 0.95rem; color: var(--text-main); margin-bottom: 8px; text-align: center; }
-.status-alert { font-size: 0.95rem; text-align: center; padding: 10px; border-radius: 8px; margin-bottom: 12px; font-weight: 600;}
+.slot-summary { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 6px; text-align: center; }
+.status-alert { font-size: 0.75rem; text-align: center; padding: 4px 10px; border-radius: 20px; margin-bottom: 8px; font-weight: 600; display: inline-block; width: auto; }
 .status-alert.pending { background: rgba(234, 179, 8, 0.15); color: #facc15; }
 .status-alert.approved { background: rgba(52, 211, 153, 0.15); color: #34d399; }
 .status-alert.rejected { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
 
 .select-slot-prompt {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
-  padding: 1rem;
+  gap: 0.5rem;
+  padding: 0.6rem 0.8rem;
   border-radius: 12px;
   background: rgba(56, 189, 248, 0.06);
   border: 1px dashed rgba(56, 189, 248, 0.25);
   text-align: center;
-  margin-bottom: 0.5rem;
 }
-.prompt-icon { font-size: 1.5rem; }
-.select-slot-prompt p { font-size: 0.875rem; color: var(--text-muted); margin: 0; }
+.prompt-icon { font-size: 1.2rem; }
+.select-slot-prompt p { font-size: 0.8rem; color: var(--text-muted); margin: 0; }
 
 .rsvp-selector {
   display: flex;
@@ -1191,24 +1179,107 @@ const updateAttendeeStatus = async (userId, status) => {
 .feature-divider { height: 1px; background: rgba(255,255,255,0.05); margin: 15px 0; }
 .feature-hint { font-size: 0.85rem; color: var(--text-main); opacity: 0.8; text-align: center; margin-top: 8px; }
 .locked-hint { color: #facc15; }
-.status-message { text-align: center; margin-top: 10px; font-weight: 500; color: var(--secondary-color); font-size: 0.95rem; }
+.status-message { text-align: center; margin-top: 6px; font-weight: 500; color: var(--secondary-color); font-size: 0.85rem; }
 .status-message.error { color: #ef4444; }
+
+/* ── Global compact action bar ── */
+.mobile-primary-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.mobile-primary-cta {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  border-radius: 12px;
+}
+.mobile-expand-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border-light);
+  background: var(--input-bg);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  flex-shrink: 0;
+}
+.mobile-expand-btn .chevron-icon {
+  font-size: 1.3rem;
+  font-weight: 700;
+  transform: rotate(-90deg);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  display: block;
+  line-height: 1;
+}
+.mobile-expand-btn.expanded .chevron-icon {
+  transform: rotate(90deg);
+}
+.mobile-expand-btn:active {
+  transform: scale(0.92);
+}
+
+.mobile-secondary-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  overflow: hidden;
+}
+.mobile-secondary-drawer .action-btn {
+  padding: 8px 14px;
+  font-size: 0.85rem;
+  border-radius: 10px;
+}
+.mobile-primary-row .rsvp-selector {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+.mobile-primary-row .rsvp-btn {
+  padding: 6px 10px;
+  font-size: 1rem;
+  min-width: 38px;
+}
+.select-slot-prompt {
+  padding: 0.5rem;
+  flex-direction: row;
+}
+.prompt-icon { font-size: 1rem; }
+.select-slot-prompt p { font-size: 0.75rem; }
+
+/* Drawer slide transition */
+.drawer-slide-enter-active { transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+.drawer-slide-leave-active { transition: all 0.25s cubic-bezier(0.55, 0, 1, 0.45); }
+.drawer-slide-enter-from,
+.drawer-slide-leave-to {
+  opacity: 0;
+  max-height: 0;
+  margin-top: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.drawer-slide-enter-to,
+.drawer-slide-leave-from {
+  opacity: 1;
+  max-height: 300px;
+}
 
 /* Desktop Media Query */
 @media (min-width: 992px) {
   .hero-section { height: 50vh; max-height: 500px; border-radius: 24px; margin-top: 2rem; }
-  .event-detail-page { padding-bottom: 2rem; }
-  .main-layout { flex-direction: row; margin-top: 2rem; align-items: flex-start; padding-bottom: 0; }
-  .event-body { flex: 1; min-width: 0; padding: 0; background: transparent; border-radius: 0; padding-right: 2rem; }
+  .event-detail-page { padding-bottom: 8rem; }
+  .main-layout { flex-direction: column; margin-top: 2rem; align-items: stretch; padding-bottom: 0; max-width: 800px; margin-left: auto; margin-right: auto; }
+  .event-body { flex: 1; min-width: 0; padding: 0; background: transparent; border-radius: 0; padding-right: 0; }
   
   .action-sidebar {
-    position: sticky;
-    top: 2rem;
-    width: 400px;
-    flex-shrink: 0;
-    padding: 0;
-    background: transparent;
-    pointer-events: auto;
+    width: 100%;
+    max-width: 600px;
+    left: 50%;
+    transform: translateX(-50%);
   }
 }
 
