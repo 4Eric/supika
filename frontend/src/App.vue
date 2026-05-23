@@ -46,29 +46,36 @@ const toggleSidebar = () => {
 const isMobileDockHidden = ref(false)
 let lastScrollY = 0
 const SCROLL_DEAD_ZONE = 10 // px – ignore micro-scrolls to prevent flicker
+let ticking = false
 
-const handleScroll = () => {
-  const currentY = window.scrollY
-  const delta = currentY - lastScrollY
+const handleScroll = (e) => {
+  if (ticking) return
+  ticking = true
 
-  // Only act when scroll exceeds dead zone
-  if (Math.abs(delta) < SCROLL_DEAD_ZONE) return
+  window.requestAnimationFrame(() => {
+    // Get scroll position from either window or the specific scrolling container
+    const target = e.target
+    const currentY = (target === document || target === window) 
+      ? window.scrollY 
+      : (target.scrollTop || 0)
 
-  // Scrolling DOWN → hide dock (more reading space), Scrolling UP → show dock
-  if (delta > 0) {
-    // user is scrolling down (reading more content)
-    isMobileDockHidden.value = true
-  } else {
-    // user is scrolling up (going back)
-    isMobileDockHidden.value = false
-  }
+    const delta = currentY - lastScrollY
 
-  // Always show at the very top of the page
-  if (currentY <= 0) {
-    isMobileDockHidden.value = false
-  }
+    if (Math.abs(delta) >= SCROLL_DEAD_ZONE) {
+      if (delta > 0) {
+        isMobileDockHidden.value = true // user is scrolling down
+      } else {
+        isMobileDockHidden.value = false // user is scrolling up
+      }
+      lastScrollY = currentY
+    }
 
-  lastScrollY = currentY
+    if (currentY <= 0) {
+      isMobileDockHidden.value = false
+    }
+
+    ticking = false
+  })
 }
 
 // Unread Message State
@@ -113,15 +120,15 @@ onMounted(() => {
   window.addEventListener('beforeinstallprompt', handleInstallPrompt)
   window.addEventListener('appinstalled', () => { showInstallBanner.value = false })
 
-  // Scroll-direction listener for mobile dock
-  window.addEventListener('scroll', handleScroll, { passive: true })
+  // Scroll-direction listener for mobile dock, capture phase handles nested scrolling divs
+  window.addEventListener('scroll', handleScroll, { passive: true, capture: true })
   lastScrollY = window.scrollY
 })
 
 onUnmounted(() => {
   if (pollInterval) clearInterval(pollInterval)
   window.removeEventListener('beforeinstallprompt', handleInstallPrompt)
-  window.removeEventListener('scroll', handleScroll)
+  window.removeEventListener('scroll', handleScroll, { capture: true })
 })
 
 const logout = () => {

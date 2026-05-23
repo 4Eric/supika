@@ -549,6 +549,7 @@ const goToHost = (id) => {
   cursor: pointer;
   transition: transform 0.25s ease, box-shadow 0.25s ease;
   box-shadow: var(--card-shadow);
+  touch-action: pan-y; /* Ensure touches register as scroll immediately */
 }
 .masonry-card:hover {
   transform: translateY(-3px);
