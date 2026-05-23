@@ -3,7 +3,7 @@ import { API_URL } from '@/config/api'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
 import { useRouter, useRoute } from 'vue-router'
-import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useThemeStore } from '@/stores/themeStore'
 import axios from 'axios'
 
@@ -40,6 +40,35 @@ const isSidebarOpen = ref(false)
 
 const toggleSidebar = () => {
   isSidebarOpen.value = !isSidebarOpen.value
+}
+
+// ── Mobile dock scroll-hide logic ──
+const isMobileDockHidden = ref(false)
+let lastScrollY = 0
+const SCROLL_DEAD_ZONE = 10 // px – ignore micro-scrolls to prevent flicker
+
+const handleScroll = () => {
+  const currentY = window.scrollY
+  const delta = currentY - lastScrollY
+
+  // Only act when scroll exceeds dead zone
+  if (Math.abs(delta) < SCROLL_DEAD_ZONE) return
+
+  // Scrolling UP → hide dock, Scrolling DOWN → show dock
+  if (delta < 0) {
+    // user is scrolling up (pulling page down)
+    isMobileDockHidden.value = true
+  } else {
+    // user is scrolling down (pushing page up)
+    isMobileDockHidden.value = false
+  }
+
+  // Always show at the very top of the page
+  if (currentY <= 0) {
+    isMobileDockHidden.value = false
+  }
+
+  lastScrollY = currentY
 }
 
 // Unread Message State
@@ -83,11 +112,16 @@ onMounted(() => {
   // PWA install prompt
   window.addEventListener('beforeinstallprompt', handleInstallPrompt)
   window.addEventListener('appinstalled', () => { showInstallBanner.value = false })
+
+  // Scroll-direction listener for mobile dock
+  window.addEventListener('scroll', handleScroll, { passive: true })
+  lastScrollY = window.scrollY
 })
 
 onUnmounted(() => {
   if (pollInterval) clearInterval(pollInterval)
   window.removeEventListener('beforeinstallprompt', handleInstallPrompt)
+  window.removeEventListener('scroll', handleScroll)
 })
 
 const logout = () => {
@@ -137,7 +171,7 @@ const isImmersiveChat = computed(() => {
 <template>
   <div class="app-container">
     <!-- Floating Glass Navigation (Island) -->
-    <nav class="dynamic-island" :class="{ 'dock-hidden': isImmersiveChat }">
+    <nav class="dynamic-island" :class="{ 'dock-hidden': isImmersiveChat, 'dock-scroll-hidden': isMobileDockHidden }">
       <div class="island-section">
         <router-link to="/" class="logo-link">
           <img src="@/assets/supika-logo-refined.png" alt="Supika" class="logo-img" />
@@ -552,6 +586,18 @@ const isImmersiveChat = computed(() => {
     max-width: 90%;
     justify-content: center;
     gap: 0.25rem;
+    /* Smooth scroll-hide transition — GPU-composited for 60 fps */
+    transition:
+      transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity  0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform, opacity;
+  }
+
+  /* Scroll-direction hide: slides down & fades out */
+  .dynamic-island.dock-scroll-hidden {
+    transform: translateX(-50%) translateY(calc(100% + 2rem));
+    opacity: 0;
+    pointer-events: none;
   }
   
   .island-section {
