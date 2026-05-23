@@ -54,12 +54,12 @@ const handleScroll = () => {
   // Only act when scroll exceeds dead zone
   if (Math.abs(delta) < SCROLL_DEAD_ZONE) return
 
-  // Scrolling UP → hide dock, Scrolling DOWN → show dock
-  if (delta < 0) {
-    // user is scrolling up (pulling page down)
+  // Scrolling DOWN → hide dock (more reading space), Scrolling UP → show dock
+  if (delta > 0) {
+    // user is scrolling down (reading more content)
     isMobileDockHidden.value = true
   } else {
-    // user is scrolling down (pushing page up)
+    // user is scrolling up (going back)
     isMobileDockHidden.value = false
   }
 
