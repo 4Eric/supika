@@ -1,4 +1,5 @@
 <script setup>
+import { Compass, Map, Calendar, Ticket, MessageCircle, Search, Sun, Moon, LogOut, User, Plus, MoreHorizontal } from 'lucide-vue-next'
 import { API_URL } from '@/config/api'
 import { useAuthStore } from '@/stores/auth'
 import { useUiStore } from '@/stores/ui'
@@ -187,39 +188,39 @@ const isImmersiveChat = computed(() => {
 
       <div class="island-section links-section">
         <router-link to="/" class="nav-item" title="Discover">
-          <span class="icon">🧭</span><span class="label">Discover</span>
+          <Compass class="icon" /><span class="label">Discover</span>
         </router-link>
         <router-link to="/map" class="nav-item" title="Map">
-          <span class="icon">🗺️</span><span class="label">Map</span>
+          <Map class="icon" /><span class="label">Map</span>
         </router-link>
         
         <template v-if="authStore.isAuthenticated">
           <router-link to="/my-events" class="nav-item" title="Calendar">
-            <span class="icon">📅</span><span class="label">Calendar</span>
+            <Calendar class="icon" /><span class="label">Calendar</span>
           </router-link>
           <!-- Desktop-only nav items -->
           <router-link to="/hosted" class="nav-item desktop-only" title="Hosted">
-             <span class="icon">🎟️</span><span class="label">Hosted</span>
+             <Ticket class="icon" /><span class="label">Hosted</span>
           </router-link>
           <router-link to="/my-messages" class="nav-item badge-container" title="Messages">
-            <span class="icon">💬</span><span class="label">Messages</span>
+            <MessageCircle class="icon" /><span class="label">Messages</span>
             <span v-if="unreadCount > 0" class="unread-badge">{{ unreadCount }}</span>
           </router-link>
           <!-- Desktop-only create button -->
           <router-link to="/host-landing" class="nav-item create-btn desktop-only" title="Create Event">
-             <span class="icon">+</span><span class="label">Create</span>
+             <Plus class="icon" /><span class="label">Create</span>
           </router-link>
         </template>
       </div>
 
       <div class="island-section controls-section">
         <div class="search-bar-container" v-if="route.path === '/' || route.path === '/map'">
-          <span class="search-icon">🔍</span>
+          <Search class="search-icon" />
           <input type="text" v-model="uiStore.searchQuery" placeholder="Search..." class="global-search" />
         </div>
 
-        <button @click="themeStore.toggleTheme" class="nav-item theme-toggle-btn" title="Toggle Theme">
-          <span class="icon">{{ themeStore.activeTheme === 'dark' ? '☀️' : '🌙' }}</span> 
+        <button @click="themeStore.toggleTheme" class="nav-item theme-toggle-btn" title="Toggle Theme" aria-label="Toggle Theme">
+          <component :is="themeStore.activeTheme === 'dark' ? Sun : Moon" class="icon" />
         </button>
         
         <template v-if="authStore.isAuthenticated">
@@ -227,27 +228,27 @@ const isImmersiveChat = computed(() => {
             <div class="avatar">{{ authStore.user?.username.charAt(0).toUpperCase() }}</div>
           </div>
           <!-- Desktop-only logout -->
-          <button @click="logout" class="nav-item logout-btn desktop-only" title="Logout">
-            <span class="icon">🚪</span>
+          <button @click="logout" class="nav-item logout-btn desktop-only" title="Logout" aria-label="Logout">
+            <LogOut class="icon" />
           </button>
           <!-- Mobile-only "More" menu trigger -->
           <div class="mobile-more-wrapper mobile-only">
-            <button @click="showMoreMenu = !showMoreMenu" class="nav-item more-btn" title="More">
-              <span class="icon">⋯</span>
+            <button @click="showMoreMenu = !showMoreMenu" class="nav-item more-btn" title="More" aria-label="More options">
+              <MoreHorizontal class="icon" />
             </button>
             <Transition name="more-pop">
               <div v-if="showMoreMenu" class="more-menu" @click="showMoreMenu = false">
-                <router-link to="/hosted" class="more-item">🎟️ My Hosted Events</router-link>
-                <router-link to="/host-landing" class="more-item">➕ Create Event</router-link>
-                <button @click="themeStore.toggleTheme" class="more-item">{{ themeStore.activeTheme === 'dark' ? '☀️' : '🌙' }} Toggle Theme</button>
-                <button @click="logout" class="more-item more-item--danger">🚪 Logout</button>
+                <router-link to="/hosted" class="more-item"><Ticket class="lucide" /> My Hosted Events</router-link>
+                <router-link to="/host-landing" class="more-item"><Plus class="lucide" /> Create Event</router-link>
+                <button @click="themeStore.toggleTheme" class="more-item"><component :is="themeStore.activeTheme === 'dark' ? Sun : Moon" class="lucide" /> Toggle Theme</button>
+                <button @click="logout" class="more-item more-item--danger"><LogOut class="lucide" /> Logout</button>
               </div>
             </Transition>
           </div>
         </template>
         <template v-else>
           <router-link to="/login" class="nav-item login-link">
-            <span class="icon">👤</span><span class="label">Login</span>
+            <User class="icon" /><span class="label">Login</span>
           </router-link>
         </template>
       </div>

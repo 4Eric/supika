@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/auth'
 import { getImageUrl } from '@/utils/imageUrl'
 import { useAsync } from '@/composables/useAsync'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
+import { Globe, Clock, Sunrise, PartyPopper, FastForward, Zap, History, Music, Dumbbell, Palette, Laptop, Pizza, Smile, Theater, Tent, PawPrint, Sparkles, MapPin, Calendar, Users, MessageCircle, Bot, Search } from 'lucide-vue-next'
 
 const uiStore = useUiStore()
 const authStore = useAuthStore()
@@ -59,26 +60,26 @@ const { loading: loadingMyEvents, execute: executeFetchMyEvents } = useAsync(asy
   return myRes.data
 })
 const filters = [
-  { label: 'All', icon: '🌍' },
-  { label: 'Today', icon: '⏱️' },
-  { label: 'Tomorrow', icon: '🌅' },
-  { label: 'This Weekend', icon: '🎉' },
-  { label: 'Next Week', icon: '⏭️' },
-  { label: 'Auto-Accept', icon: '⚡' },
-  { label: 'Past', icon: '🕰️' }
+  { label: 'All', icon: Globe },
+  { label: 'Today', icon: Clock },
+  { label: 'Tomorrow', icon: Sunrise },
+  { label: 'This Weekend', icon: PartyPopper },
+  { label: 'Next Week', icon: FastForward },
+  { label: 'Auto-Accept', icon: Zap },
+  { label: 'Past', icon: History }
 ]
 
 const CATEGORIES = [
-  { label: 'music',    icon: '🎵' },
-  { label: 'sports',   icon: '🏋️' },
-  { label: 'art',      icon: '🎨' },
-  { label: 'tech',     icon: '💻' },
-  { label: 'food',     icon: '🍕' },
-  { label: 'comedy',   icon: '😄' },
-  { label: 'theater',  icon: '🎭' },
-  { label: 'festival', icon: '🎪' },
-  { label: 'pet',      icon: '🐾' },
-  { label: 'other',    icon: '✨' },
+  { label: 'music',    icon: Music },
+  { label: 'sports',   icon: Dumbbell },
+  { label: 'art',      icon: Palette },
+  { label: 'tech',     icon: Laptop },
+  { label: 'food',     icon: Pizza },
+  { label: 'comedy',   icon: Smile },
+  { label: 'theater',  icon: Theater },
+  { label: 'festival', icon: Tent },
+  { label: 'pet',      icon: PawPrint },
+  { label: 'other',    icon: Sparkles },
 ]
 
 const activeCategories = ref([])
@@ -91,7 +92,7 @@ const toggleCategory = (cat) => {
 
 const categoryEmoji = (cat) => {
   const found = CATEGORIES.find(c => c.label === (cat || '').toLowerCase())
-  return found ? found.icon : '✨'
+  return found ? found.icon : Sparkles
 }
 
 // Pagination State
@@ -296,7 +297,7 @@ const goToHost = (id) => {
           :class="{ active: activeFilter === filter.label }"
           @click="activeFilter = filter.label"
         >
-          <span class="filter-icon">{{ filter.icon }}</span>
+          <component :is="filter.icon" class="filter-icon lucide" />
           <span class="filter-label">{{ filter.label === 'Auto-Accept' ? 'Instant' : filter.label }}</span>
         </button>
       </div>
@@ -313,7 +314,7 @@ const goToHost = (id) => {
           :class="{ active: activeCategories.includes(cat.label) }"
           @click="toggleCategory(cat.label)"
         >
-          <span>{{ cat.icon }}</span>
+          <component :is="cat.icon" class="lucide" style="width: 14px; height: 14px;" />
           <span class="chip-label">{{ cat.label.charAt(0).toUpperCase() + cat.label.slice(1) }}</span>
         </button>
       </div>
@@ -338,7 +339,7 @@ const goToHost = (id) => {
     </div>
 
     <div v-if="activeFilter === 'All' && recommendedEvents.length > 0 && !uiStore.searchQuery" class="recommendations-section">
-      <h3 class="section-title">✨ Matched For You</h3>
+      <h3 class="section-title"><Sparkles class="lucide" style="margin-right: 6px; color: var(--primary-color)" /> Matched For You</h3>
       <div class="horizontal-scroll">
         <div v-for="event in recommendedEvents" :key="'rec-'+event.id" class="rec-card" @click="goToEvent(event.id)">
           <div class="rec-img-wrapper">
@@ -354,10 +355,10 @@ const goToHost = (id) => {
     </div>
 
     <div v-if="loadingEvents && allEvents.length === 0" class="no-results">
-       <h3>Loading events... ⏳</h3>
+       <h3>Loading events... <Clock class="lucide" style="margin-left: 8px; vertical-align: baseline" /></h3>
     </div>
     <div v-else-if="errorEvents" class="no-results">
-      <h3>Connection Error 📡</h3>
+      <h3>Connection Error</h3>
       <p>{{ errorEvents.message }}</p>
       <div v-if="errorEvents.config" style="font-size: 10px; color: #666; word-break: break-all;">
         Target: {{ errorEvents.config.url }}
@@ -365,7 +366,7 @@ const goToHost = (id) => {
       <button @click="fetchEvents()" class="btn btn-secondary" style="margin-top: 1rem;">Retry</button>
     </div>
     <div v-else-if="feedEvents.length === 0" class="no-results">
-      <h3>No events found 🕵️</h3>
+      <h3>No events found <Search class="lucide" style="margin-left: 8px; vertical-align: baseline" /></h3>
       <p>Try adjusting your search or date filters.</p>
       <button @click="fetchEvents()" class="btn btn-secondary" style="margin-top: 1rem;">Refresh Feed</button>
     </div>
@@ -390,15 +391,15 @@ const goToHost = (id) => {
             loading="lazy"
           />
           <!-- AI-discovered badge -->
-          <span v-if="event.creatorName === 'eFinder.ai'" class="ai-badge">🤖 AI</span>
+          <span v-if="event.creatorName === 'eFinder.ai'" class="ai-badge"><Bot class="lucide" style="width: 12px; height: 12px; margin-right: 2px" /> AI</span>
           <!-- For You badge -->
-          <span v-if="event._recScore > 0" class="for-you-badge">✨ For You</span>
+          <span v-if="event._recScore > 0" class="for-you-badge"><Sparkles class="lucide" style="width: 12px; height: 12px; margin-right: 2px" /> For You</span>
           <!-- Auto-Accept badge -->
-          <span v-if="!event.requiresApproval" class="auto-badge">⚡ Instant</span>
+          <span v-if="!event.requiresApproval" class="auto-badge"><Zap class="lucide" style="width: 12px; height: 12px; margin-right: 2px" /> Instant</span>
           <!-- Category badge -->
-          <span v-if="event.category" class="category-badge">{{ categoryEmoji(event.category) }} {{ event.category }}</span>
+          <span v-if="event.category" class="category-badge"><component :is="categoryEmoji(event.category)" class="lucide" style="width: 12px; height: 12px; margin-right: 2px" /> {{ event.category }}</span>
           <!-- New badge -->
-          <span v-if="isNew(event)" class="new-badge">🆕 New</span>
+          <span v-if="isNew(event)" class="new-badge"><Sparkles class="lucide" style="width: 12px; height: 12px; margin-right: 2px" /> New</span>
         </div>
 
         <!-- Content -->
@@ -406,17 +407,17 @@ const goToHost = (id) => {
           <h3 class="card-title">{{ event.title }}</h3>
           <div class="card-meta">
             <span class="meta-item">
-              📍 <a
+              <MapPin class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> <a
                 :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`"
                 target="_blank"
                 @click.stop
                 class="location-link"
               >{{ formatLocation(event.locationName) }}</a>
             </span>
-            <span class="meta-item">📅 {{ new Date(event.date).toLocaleDateString() }}</span>
+            <span class="meta-item"><Calendar class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> {{ new Date(event.date).toLocaleDateString() }}</span>
             <span class="meta-item social-meta">
-              <span v-if="event.attendeeCount > 0">👥 {{ event.attendeeCount }} going</span>
-              <span v-if="event.commentCount > 0" class="comment-count">💬 {{ event.commentCount }}</span>
+              <span v-if="event.attendeeCount > 0"><Users class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> {{ event.attendeeCount }} going</span>
+              <span v-if="event.commentCount > 0" class="comment-count"><MessageCircle class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> {{ event.commentCount }}</span>
             </span>
           </div>
           <div class="card-author" @click.stop="goToHost(event.createdBy)">

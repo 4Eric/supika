@@ -166,6 +166,11 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); font-weight: 600; letter-spacing: 
   box-shadow: none;
 }
 
+.btn:focus-visible, .nav-item:focus-visible, .card:focus-visible, .masonry-card:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 4px;
+}
+
 .btn-secondary {
   background-color: transparent;
   color: var(--primary-color);
@@ -261,4 +266,13 @@ h3 { font-size: clamp(1.25rem, 3vw, 1.75rem); font-weight: 600; letter-spacing: 
     padding: 0.75rem;
     font-size: 1rem;
   }
+}
+
+/* Lucide Icon Base Styles */
+.lucide {
+  stroke-width: 2;
+  width: 1em;
+  height: 1em;
+  vertical-align: middle;
+  color: currentColor;
 }

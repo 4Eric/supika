@@ -9,6 +9,20 @@ import TimeSlotManager from '@/components/TimeSlotManager.vue'
 import ImageUploadZone from '@/components/ImageUploadZone.vue'
 import { useThemeStore } from '@/stores/themeStore'
 import { useGeolocation } from '@/composables/useGeolocation'
+import { FileText, MapPin, Coins, Camera, Search, Music, Dumbbell, Palette, Laptop, Pizza, Laugh, Drama, Tent, PawPrint, Sparkles } from 'lucide-vue-next'
+
+const categoryOptions = [
+  { key: 'music', icon: Music },
+  { key: 'sports', icon: Dumbbell },
+  { key: 'art', icon: Palette },
+  { key: 'tech', icon: Laptop },
+  { key: 'food', icon: Pizza },
+  { key: 'comedy', icon: Laugh },
+  { key: 'theater', icon: Drama },
+  { key: 'festival', icon: Tent },
+  { key: 'pet', icon: PawPrint },
+  { key: 'other', icon: Sparkles },
+]
 
 const router = useRouter()
 const themeStore = useThemeStore()
@@ -127,7 +141,7 @@ const submitForm = async () => {
     <form @submit.prevent="submitForm" class="create-form">
       <!-- Section 1: Basics -->
       <section class="form-section card">
-        <h3 class="section-title"><span class="icon">📝</span> Basic Info</h3>
+        <h3 class="section-title"><FileText class="lucide" style="width:20px;height:20px;" /> Basic Info</h3>
         <div class="form-group">
           <label for="event-title">Event Title</label>
           <input type="text" id="event-title" v-model="title" class="form-control" required placeholder="Give it a catchy name..." />
@@ -139,8 +153,8 @@ const submitForm = async () => {
         <div class="form-group">
           <label id="cat-label">Category</label>
           <div class="category-grid" aria-labelledby="cat-label">
-            <button type="button" v-for="cat in [['music','🎵'],['sports','🏋️'],['art','🎨'],['tech','💻'],['food','🍕'],['comedy','😄'],['theater','🎭'],['festival','🎪'],['pet','🐾'],['other','✨']]" :key="cat[0]" class="cat-chip" :class="{ active: category === cat[0] }" @click="category = cat[0]">
-              {{ cat[1] }} {{ cat[0] }}
+            <button type="button" v-for="cat in categoryOptions" :key="cat.key" class="cat-chip" :class="{ active: category === cat.key }" @click="category = cat.key">
+              <component :is="cat.icon" class="lucide" style="width:16px;height:16px;" /> {{ cat.key }}
             </button>
           </div>
         </div>
@@ -153,14 +167,14 @@ const submitForm = async () => {
 
       <!-- Section 3: Location -->
       <section class="form-section card">
-        <h3 class="section-title"><span class="icon">📍</span> Location</h3>
+        <h3 class="section-title"><MapPin class="lucide" style="width:20px;height:20px;" /> Location</h3>
         <div class="form-group">
           <label for="location-search">Where</label>
           <div class="location-search">
             <input type="text" id="location-search" v-model="locationName" class="form-control" required placeholder="Search an address..." />
             <div class="search-actions">
-              <button type="button" @click="lookupAddress(eventMapRef)" class="btn-search" title="Search address">🔍</button>
-              <button type="button" @click="getUserLocation(eventMapRef)" class="btn-search" title="Use my current location">📍</button>
+              <button type="button" @click="lookupAddress(eventMapRef)" class="btn-search" title="Search address"><Search class="lucide" style="width:18px;height:18px;" /></button>
+              <button type="button" @click="getUserLocation(eventMapRef)" class="btn-search" title="Use my current location"><MapPin class="lucide" style="width:18px;height:18px;" /></button>
             </div>
           </div>
         </div>
@@ -174,7 +188,7 @@ const submitForm = async () => {
 
       <!-- Section 4: Pricing -->
       <section class="form-section card">
-        <h3 class="section-title"><span class="icon">💰</span> Ticket Pricing</h3>
+        <h3 class="section-title"><Coins class="lucide" style="width:20px;height:20px;" /> Ticket Pricing</h3>
         <p class="section-hint">Keep it 0 for free events. Supika charges a 7% platform fee on paid tickets.</p>
         <div class="pricing-grid">
           <div class="form-group">
@@ -198,7 +212,7 @@ const submitForm = async () => {
 
       <!-- Section 5: Media & Settings -->
       <section class="form-section card">
-        <h3 class="section-title"><span class="icon">📸</span> Media & Settings</h3>
+        <h3 class="section-title"><Camera class="lucide" style="width:20px;height:20px;" /> Media & Settings</h3>
         <div class="form-group">
           <label>Photos (Max 10)</label>
           <ImageUploadZone 

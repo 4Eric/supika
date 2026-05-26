@@ -1,5 +1,6 @@
 <script setup>
 import { useRouter } from 'vue-router'
+import { Target, Sparkles, Image as ImageIcon, MessageSquare, Smartphone } from 'lucide-vue-next'
 
 const router = useRouter()
 
@@ -9,24 +10,24 @@ const startHosting = () => {
 
 const features = [
   {
-    title: '🎯 Targeted Discovery',
+    title: 'Targeted Discovery',
     description: 'Our AI "Vibe Match" puts your event in front of the people most likely to attend.',
-    icon: '✨'
+    icon: Sparkles
   },
   {
-    title: '📸 Memory Boards',
+    title: 'Memory Boards',
     description: 'Attendees share their best shots directly on your event page after it ends.',
-    icon: '🖼️'
+    icon: ImageIcon
   },
   {
-    title: '💬 Automated Group Chats',
+    title: 'Automated Group Chats',
     description: 'Every event gets a private group chat for approved attendees to connect.',
-    icon: '🗨️'
+    icon: MessageSquare
   },
   {
-    title: '📊 Easy Management',
+    title: 'Easy Management',
     description: 'Approve registrations, manage waitlists, and message attendees with one tap.',
-    icon: '📱'
+    icon: Smartphone
   }
 ]
 
@@ -89,7 +90,7 @@ const steps = [
       <h2 class="section-title">Built for modern creators.</h2>
       <div class="features-grid">
         <div v-for="f in features" :key="f.title" class="feature-card">
-          <div class="feature-icon">{{ f.icon }}</div>
+          <div class="feature-icon"><component :is="f.icon" class="lucide" style="width: 40px; height: 40px;" /></div>
           <h3>{{ f.title }}</h3>
           <p>{{ f.description }}</p>
         </div>

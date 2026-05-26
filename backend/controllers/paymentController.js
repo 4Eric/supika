@@ -43,7 +43,7 @@ const createCheckoutSession = async (req, res) => {
                     product_data: {
                         name: `${event.title} - Ticket`,
                         description: `Ticket for the event: ${event.title}`,
-                        images: event.image_url ? [event.image_url] : [],
+                        images: (event.image_url && event.image_url.startsWith('http')) ? [event.image_url] : [],
                     },
                     unit_amount: amountTotal,
                 },

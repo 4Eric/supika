@@ -12,6 +12,7 @@ import { useAsync } from '@/composables/useAsync'
 import LoadingSkeleton from '@/components/LoadingSkeleton.vue'
 import QrcodeVue from 'qrcode.vue'
 import EventComments from '@/components/EventComments.vue'
+import { Building, Camera, Flame, HelpCircle, Users, Clock, XCircle, CheckCircle, ChevronLeft, Ticket, MessageCircle, ArrowUp, Hand, ChevronRight, Check } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -323,7 +324,7 @@ const updateAttendeeStatus = async (userId, status) => {
           <div class="organization-branding-large" v-if="event.organizationName">
             <div class="org-logo-large">
               <img v-if="event.organizationLogo" :src="getImageUrl(event.organizationLogo)" :alt="event.organizationName" />
-              <div v-else class="org-logo-placeholder-large">🏢</div>
+              <div v-else class="org-logo-placeholder-large"><Building class="lucide" style="width: 32px; height: 32px;" /></div>
             </div>
             <span class="org-name-large">{{ event.organizationName }}</span>
           </div>
@@ -378,7 +379,7 @@ const updateAttendeeStatus = async (userId, status) => {
                 <div class="slot-date">{{ new Date(slot.startTime).toLocaleString([], {weekday: 'short', month: 'short', day: 'numeric'}) }}</div>
                 <div class="slot-time-text">{{ new Date(slot.startTime).toLocaleString([], {hour: '2-digit', minute:'2-digit'}) }}</div>
                 <div class="slot-status">
-                  <span v-if="registeredSlots.some(s => s.slotId === slot.id)">✓ Registered</span>
+                  <span v-if="registeredSlots.some(s => s.slotId === slot.id)" style="display:flex;align-items:center;gap:4px;justify-content:center"><Check class="lucide" style="width:14px;height:14px"/> Registered</span>
                   <span v-else>{{ slot.attendeeCount }} / {{ slot.maxAttendees }} Joined</span>
                 </div>
               </button>
@@ -405,8 +406,8 @@ const updateAttendeeStatus = async (userId, status) => {
               <h3 class="section-title">Memory Board</h3>
               <button v-if="hasApprovedRegistration || event.createdBy === authStore.user?.id" 
                       @click="showUploadModal = true" 
-                      class="btn-sm btn-outline">
-                📸 Add Memory
+                      class="btn-sm btn-outline" style="display:flex;align-items:center;gap:6px;">
+                <Camera class="lucide" style="width:16px;height:16px" /> Add Memory
               </button>
             </div>
             
@@ -441,7 +442,7 @@ const updateAttendeeStatus = async (userId, status) => {
             <h3 class="section-title">Who's Vibing ({{ publicAttendees.length }})</h3>
             
             <div v-if="goingAttendees.length > 0" class="attendee-group">
-              <h4 class="group-title">🔥 Going ({{ goingAttendees.length }})</h4>
+              <h4 class="group-title" style="display:flex;align-items:center;gap:6px;"><Flame class="lucide" style="width:18px;height:18px" /> Going ({{ goingAttendees.length }})</h4>
               <div class="avatar-stack">
                 <div 
                   v-for="att in goingAttendees.slice(0, 10)" 
@@ -457,7 +458,7 @@ const updateAttendeeStatus = async (userId, status) => {
             </div>
 
             <div v-if="maybeAttendees.length > 0" class="attendee-group">
-              <h4 class="group-title">🤔 Maybe ({{ maybeAttendees.length }})</h4>
+              <h4 class="group-title" style="display:flex;align-items:center;gap:6px;"><HelpCircle class="lucide" style="width:18px;height:18px" /> Maybe ({{ maybeAttendees.length }})</h4>
               <div class="avatar-stack">
                 <div 
                   v-for="att in maybeAttendees.slice(0, 10)" 
@@ -496,7 +497,7 @@ const updateAttendeeStatus = async (userId, status) => {
                 Are you sure you want to cancel your registration for this event?
               </p>
               <button @click="confirmCancel" :disabled="registering" class="action-btn danger-btn" style="margin-bottom: 0.75rem;">
-                {{ registering ? 'Processing...' : (event.ticketPrice > 0 ? '✅ Yes, Cancel & Refund' : '✅ Yes, Cancel') }}
+                {{ registering ? 'Processing...' : (event.ticketPrice > 0 ? 'Yes, Cancel & Refund' : 'Yes, Cancel') }}
               </button>
               <button @click="showCancelConfirm = false" class="btn-sm btn-outline" style="width: 100%; padding: 10px;">{{ event.ticketPrice > 0 ? 'Keep my ticket' : 'No, Go back' }}</button>
             </div>
@@ -509,8 +510,8 @@ const updateAttendeeStatus = async (userId, status) => {
             <template v-if="authStore.isAuthenticated">
               <div class="role-actions" v-if="isOrganizer">
                 <h4 class="action-title">Organizer Actions</h4>
-                <button @click="showAttendees = !showAttendees" class="action-btn outline-btn">
-                  👥 Manage Attendees ({{ attendees.length }})
+                <button @click="showAttendees = !showAttendees" class="action-btn outline-btn" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                  <Users class="lucide" style="width:18px;height:18px" /> Manage Attendees ({{ attendees.length }})
                 </button>
               </div>
               <div class="participant-actions">
@@ -518,8 +519,11 @@ const updateAttendeeStatus = async (userId, status) => {
                   <div class="slot-summary" v-if="event.timeSlots.find(s => s.id === selectedTimeSlot)">
                      Selected Slot: <strong>{{ new Date(event.timeSlots.find(s => s.id === selectedTimeSlot).startTime).toLocaleString([], {weekday: 'short', hour: '2-digit', minute:'2-digit'}) }}</strong>
                   </div>
-                  <div v-if="isRegisteredForSelected" class="status-alert" :class="selectedSlotStatus">
-                    {{ selectedSlotStatus === 'pending' ? '⏳ Pending' : (selectedSlotStatus === 'rejected' ? '❌ Rejected' : '✅ Registered') }}
+                  <div v-if="isRegisteredForSelected" class="status-alert" :class="selectedSlotStatus" style="display:flex;align-items:center;gap:6px;">
+                    <Clock v-if="selectedSlotStatus === 'pending'" class="lucide" style="width:16px;height:16px"/>
+                    <XCircle v-else-if="selectedSlotStatus === 'rejected'" class="lucide" style="width:16px;height:16px"/>
+                    <CheckCircle v-else class="lucide" style="width:16px;height:16px"/>
+                    {{ selectedSlotStatus === 'pending' ? 'Pending' : (selectedSlotStatus === 'rejected' ? 'Rejected' : 'Registered') }}
                   </div>
                 </div>
 
@@ -527,8 +531,8 @@ const updateAttendeeStatus = async (userId, status) => {
                 <div class="mobile-primary-row" v-if="selectedTimeSlot">
                   <template v-if="!isRegisteredForSelected">
                     <div class="rsvp-selector" v-if="!event.ticketPrice || Number(event.ticketPrice) === 0">
-                      <button class="rsvp-btn" :class="{ active: rsvpStatus === 'going' }" @click="rsvpStatus = 'going'">🔥</button>
-                      <button class="rsvp-btn" :class="{ active: rsvpStatus === 'maybe' }" @click="rsvpStatus = 'maybe'">🤔</button>
+                      <button class="rsvp-btn" :class="{ active: rsvpStatus === 'going' }" @click="rsvpStatus = 'going'"><Flame class="lucide" style="width:20px;height:20px" /></button>
+                      <button class="rsvp-btn" :class="{ active: rsvpStatus === 'maybe' }" @click="rsvpStatus = 'maybe'"><HelpCircle class="lucide" style="width:20px;height:20px" /></button>
                     </div>
                     <button v-if="event.ticketPrice > 0" @click="handleCheckout" :disabled="checkingOut || !selectedTimeSlot" class="action-btn primary-btn pulse-glow mobile-primary-cta">
                       {{ checkingOut ? 'Processing...' : `Buy - $${event.ticketPrice}` }}
@@ -544,21 +548,21 @@ const updateAttendeeStatus = async (userId, status) => {
                   </template>
                   <!-- Expand chevron for secondary actions -->
                   <button v-if="isRegisteredForSelected" class="mobile-expand-btn" @click="showMobileActions = !showMobileActions" :class="{ expanded: showMobileActions }">
-                    <span class="chevron-icon">‹</span>
+                    <ChevronLeft class="chevron-icon lucide" />
                   </button>
                 </div>
 
                 <!-- Secondary actions drawer (collapsed on mobile/desktop) -->
                 <Transition name="drawer-slide">
                   <div class="mobile-secondary-drawer" v-if="showMobileActions && selectedTimeSlot && isRegisteredForSelected">
-                    <button v-if="selectedSlotStatus === 'approved'" @click="showTicketModal = true" class="action-btn highlight-btn">
-                      🎟️ Show Ticket (QR)
+                    <button v-if="selectedSlotStatus === 'approved'" @click="showTicketModal = true" class="action-btn highlight-btn" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                      <Ticket class="lucide" style="width:18px;height:18px"/> Show Ticket (QR)
                     </button>
-                    <button @click="router.push(`/chat/${event.id}/${event.createdBy}`)" class="action-btn secondary-btn">
-                      💬 Chat Organizer
+                    <button @click="router.push(`/chat/${event.id}/${event.createdBy}`)" class="action-btn secondary-btn" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                      <MessageCircle class="lucide" style="width:18px;height:18px"/> Chat Organizer
                     </button>
-                    <button v-if="canJoinGroupChat" @click="router.push(`/group-chat/${event.id}/${selectedTimeSlot}`)" class="action-btn highlight-btn">
-                      💬 Group Chat
+                    <button v-if="canJoinGroupChat" @click="router.push(`/group-chat/${event.id}/${selectedTimeSlot}`)" class="action-btn highlight-btn" style="display:flex;align-items:center;justify-content:center;gap:6px;">
+                      <MessageCircle class="lucide" style="width:18px;height:18px"/> Group Chat
                     </button>
                   </div>
                 </Transition>
@@ -567,7 +571,7 @@ const updateAttendeeStatus = async (userId, status) => {
 
               <!-- Prompt: no slot selected yet -->
               <div v-if="!selectedTimeSlot && !isOrganizer && authStore.isAuthenticated" class="select-slot-prompt">
-                <span class="prompt-icon">👆</span>
+                <ArrowUp class="prompt-icon lucide" style="width:24px;height:24px"/>
                 <p>Select a time slot to register</p>
               </div>
 
@@ -619,8 +623,8 @@ const updateAttendeeStatus = async (userId, status) => {
     </div>
 
     <!-- Floating Comments Button -->
-    <button @click="showComments = true" class="floating-comments-btn">
-      <span class="icon">💬</span> Comments
+    <button @click="showComments = true" class="floating-comments-btn" style="display:flex;align-items:center;gap:6px;">
+      <MessageCircle class="lucide" style="width:18px;height:18px"/> Comments
     </button>
 
     <!-- Comments TikTok Style Bottom Sheet -->

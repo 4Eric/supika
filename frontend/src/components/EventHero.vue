@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, defineProps } from 'vue'
 import { useRouter } from 'vue-router'
 import { getImageUrl } from '@/utils/imageUrl'
+import { MapPin, Bot, Link } from 'lucide-vue-next'
 
 const props = defineProps({
   event: { type: Object, required: true }
@@ -121,11 +122,11 @@ onUnmounted(() => {
       <div class="hero-meta-badges">
         <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`"
            target="_blank" class="hero-badge location-badge">
-          <span>📍</span> {{ event.locationName }}
+          <MapPin class="lucide" style="width:14px;height:14px;" /> {{ event.locationName }}
         </a>
-        <span v-if="event.creatorName === 'eFinder.ai'" class="hero-badge ai-badge">🤖 AI Discovered</span>
+        <span v-if="event.creatorName === 'eFinder.ai'" class="hero-badge ai-badge"><Bot class="lucide" style="width:14px;height:14px;" /> AI Discovered</span>
         <a v-if="event.sourceUrl" :href="event.sourceUrl" target="_blank" class="hero-badge source-badge">
-          <span>🔗</span> Source
+          <Link class="lucide" style="width:14px;height:14px;" /> Source
         </a>
       </div>
     </div>

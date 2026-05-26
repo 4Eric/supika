@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { Lock, Camera } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -117,7 +118,7 @@ const handleSubmit = async () => {
     <!-- Session Expired Toast -->
     <Transition name="toast">
       <div v-if="sessionExpired" class="session-toast" @click="sessionExpired = false">
-        <span class="toast-icon">🔒</span>
+        <Lock class="toast-icon lucide" style="width:16px;height:16px;" />
         <span>Your session has expired. Please sign in again.</span>
       </div>
     </Transition>
@@ -140,7 +141,7 @@ const handleSubmit = async () => {
           <label for="avatar" class="avatar-preview-box">
             <img v-if="avatarPreview" :src="avatarPreview" class="profile-preview-img" alt="Avatar Preview" />
             <div v-else class="avatar-placeholder">
-              <span>📸</span>
+              <Camera class="lucide" style="width:32px;height:32px;" />
             </div>
             <div class="avatar-hover-label">Pick Avatar</div>
           </label>

@@ -5,6 +5,7 @@ import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getImageUrl } from '@/utils/imageUrl'
+import { MapPin, Calendar, Clock, XCircle, CheckCircle } from 'lucide-vue-next'
 
 const events = ref([])
 const loading = ref(true)
@@ -92,14 +93,17 @@ const formatLocation = (loc) => {
         <div class="card-content">
           <h3>{{ event.title }}</h3>
           <p class="location-text">
-            📍 <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" @click.stop class="location-link">{{ formatLocation(event.locationName) }}</a>
+            <MapPin class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" @click.stop class="location-link">{{ formatLocation(event.locationName) }}</a>
           </p>
-          <p class="date-text">📅 {{ new Date(event.date).toLocaleDateString() }} at {{ new Date(event.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}</p>
+          <p class="date-text"><Calendar class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> {{ new Date(event.date).toLocaleDateString() }} at {{ new Date(event.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) }}</p>
           <p class="desc-text">{{ event.description.substring(0, 100) }}...</p>
           
           <div class="card-actions">
-            <span class="status-badge" :class="event.status">
-              {{ event.status === 'pending' ? '⏳ Pending' : (event.status === 'rejected' ? '❌ Rejected' : '✅ Approved') }}
+            <span class="status-badge" :class="event.status" style="display:flex;align-items:center;gap:4px;">
+              <Clock v-if="event.status === 'pending'" class="lucide" style="width:14px;height:14px;" />
+              <XCircle v-else-if="event.status === 'rejected'" class="lucide" style="width:14px;height:14px;" />
+              <CheckCircle v-else class="lucide" style="width:14px;height:14px;" />
+              {{ event.status === 'pending' ? 'Pending' : (event.status === 'rejected' ? 'Rejected' : 'Approved') }}
             </span>
             <button @click="deregister(event.id, event.timeSlotId, $event)" class="btn btn-danger btn-sm">Cancel</button>
           </div>

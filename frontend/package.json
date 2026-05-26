@@ -13,6 +13,7 @@
         "axios": "^1.6.0",
         "leaflet": "^1.9.4",
         "leaflet.markercluster": "^1.5.3",
+        "lucide-vue-next": "^1.0.0",
         "pinia": "^2.1.0",
         "qrcode.vue": "^3.8.0",
         "vue": "^3.3.4",

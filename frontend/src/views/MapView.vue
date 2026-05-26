@@ -6,6 +6,7 @@ import EventMap from '@/components/EventMap.vue'
 import { useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
 import { getImageUrl } from '@/utils/imageUrl'
+import { Zap, MapPin, Calendar, Users, X } from 'lucide-vue-next'
 
 const uiStore = useUiStore()
 const localEvents = ref([])
@@ -85,17 +86,17 @@ const formatLocation = (loc) => {
     <Transition name="slide-up">
       <div v-if="isPreviewVisible && previewEvent" class="preview-sheet" @click.self="closePreview">
         <div class="preview-card">
-          <button class="preview-close" @click="closePreview">✕</button>
+          <button class="preview-close" @click="closePreview"><X class="lucide" style="width: 16px; height: 16px;" /></button>
           <div class="preview-image">
             <img :src="getImageUrl(previewEvent.imageUrl)" :alt="previewEvent.title" />
-            <span v-if="!previewEvent.requiresApproval" class="preview-badge">⚡ Instant</span>
+            <span v-if="!previewEvent.requiresApproval" class="preview-badge" style="display:flex;align-items:center;gap:4px;"><Zap class="lucide" style="width:12px;height:12px;" /> Instant</span>
           </div>
           <div class="preview-body">
             <h3 class="preview-title">{{ previewEvent.title }}</h3>
             <div class="preview-meta">
-              <span class="preview-meta-item">📍 {{ formatLocation(previewEvent.locationName) }}</span>
-              <span class="preview-meta-item">📅 {{ new Date(previewEvent.date).toLocaleDateString() }}</span>
-              <span class="preview-meta-item" v-if="previewEvent.attendeeCount">👥 {{ previewEvent.attendeeCount }} joined</span>
+              <span class="preview-meta-item" style="display:flex;align-items:center;gap:6px;"><MapPin class="lucide" style="width:14px;height:14px;" /> {{ formatLocation(previewEvent.locationName) }}</span>
+              <span class="preview-meta-item" style="display:flex;align-items:center;gap:6px;"><Calendar class="lucide" style="width:14px;height:14px;" /> {{ new Date(previewEvent.date).toLocaleDateString() }}</span>
+              <span class="preview-meta-item" v-if="previewEvent.attendeeCount" style="display:flex;align-items:center;gap:6px;"><Users class="lucide" style="width:14px;height:14px;" /> {{ previewEvent.attendeeCount }} joined</span>
             </div>
             <button class="preview-cta" @click="goToEvent(previewEvent.id)">
               View Details →

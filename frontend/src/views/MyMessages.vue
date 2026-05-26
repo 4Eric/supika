@@ -4,6 +4,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
+import { MessageCircle } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -71,7 +72,7 @@ const formatRelativeTime = (dateString) => {
     </div>
     
     <div v-else-if="conversations.length === 0" class="state-container empty">
-      <div class="empty-icon">💬</div>
+      <MessageCircle class="empty-icon lucide" style="width: 64px; height: 64px;" />
       <h2>No messages yet</h2>
       <p>Join an event and start chatting with the community!</p>
       <button @click="router.push('/')" class="btn btn-primary mt-4">Discover Events</button>

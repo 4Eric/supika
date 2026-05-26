@@ -6,6 +6,7 @@ import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
 import EmojiPicker from 'vue3-emoji-picker'
 import 'vue3-emoji-picker/css'
+import { Hand, Smile } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -183,7 +184,7 @@ const formatMessageTime = (dateString) => {
       <!-- Messages Area -->
       <main class="messages-area" ref="messagesContainer">
         <div v-if="messages.length === 0" class="empty-chat">
-          <div class="empty-icon">👋</div>
+          <Hand class="empty-icon lucide" style="width: 48px; height: 48px; margin-bottom: 0.5rem;" />
           <p>Welcome to the group! Be the first to say hello.</p>
         </div>
         
@@ -233,7 +234,7 @@ const formatMessageTime = (dateString) => {
 
         <form @submit.prevent="sendMessage" class="input-form">
           <button type="button" class="btn-icon emoji-btn" @click="showEmojiPicker = !showEmojiPicker" aria-label="Add emoji">
-            😀
+            <Smile class="lucide" style="width: 24px; height: 24px;" />
           </button>
           <div class="input-wrapper">
             <input 

@@ -3,6 +3,7 @@ import { API_URL } from '@/config/api'
 import { ref, onMounted, computed } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
+import { Users, Shield, Search, Edit2, Trash2 } from 'lucide-vue-next'
 
 // Debounce helper
 const debounce = (fn, delay) => {
@@ -120,14 +121,14 @@ onMounted(fetchUsers)
         <header class="admin-header">
             <div class="stats-cards">
                 <div class="stat-card glass-card">
-                    <span class="stat-icon">👥</span>
+                    <Users class="stat-icon lucide" style="font-size: 2rem; width: 32px; height: 32px" />
                     <div class="stat-info">
                         <p class="stat-label">Total Users</p>
                         <p class="stat-value">{{ users.length }}</p>
                     </div>
                 </div>
                 <div class="stat-card glass-card">
-                    <span class="stat-icon">🛡️</span>
+                    <Shield class="stat-icon lucide" style="font-size: 2rem; width: 32px; height: 32px" />
                     <div class="stat-info">
                         <p class="stat-label">Admins</p>
                         <p class="stat-value">{{ users.filter(u => u.role === 'admin').length }}</p>
@@ -136,7 +137,7 @@ onMounted(fetchUsers)
             </div>
 
             <div class="search-box glass-card">
-                <span class="search-icon">🔍</span>
+                <Search class="search-icon lucide" />
                 <input 
                     type="text" 
                     v-model="searchQuery" 
@@ -186,8 +187,8 @@ onMounted(fetchUsers)
                         <td>{{ formatDate(user.createdAt) }}</td>
                         <td>
                             <div class="actions">
-                                <button class="btn-icon" @click="openEditModal(user)" title="Edit User">✏️</button>
-                                <button class="btn-icon delete" @click="confirmDelete(user)" title="Delete User">🗑️</button>
+                                <button class="btn-icon" @click="openEditModal(user)" title="Edit User" aria-label="Edit"><Edit2 class="lucide" /></button>
+                                <button class="btn-icon delete" @click="confirmDelete(user)" title="Delete User" aria-label="Delete"><Trash2 class="lucide" /></button>
                             </div>
                         </td>
                     </tr>

@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
 import { getImageUrl } from '@/utils/imageUrl'
+import { Bot, Search, MapPin, Calendar, Map, CheckCircle, XCircle, Link } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
 const query = ref('')
@@ -77,7 +78,7 @@ const approveEvent = async () => {
     }, {
       headers: { 'x-auth-token': authStore.token }
     })
-    successMsg.value = `✅ "${res.data.event.title}" is now live on the map!`
+    successMsg.value = `"${res.data.event.title}" is now live on the map!`
     previewEvent.value = null
     fetchDiscoveries() // Refresh list
   } catch (e) {
@@ -98,7 +99,7 @@ const rejectEvent = () => {
   <div class="ai-page">
     <div class="ai-header">
       <div class="ai-title-row">
-        <span class="ai-icon">🤖</span>
+        <Bot class="ai-icon lucide" style="width: 40px; height: 40px" />
         <h1>eFinder.ai</h1>
       </div>
       <p class="ai-subtitle">Discover real events from the internet and add them to Supika.</p>
@@ -116,11 +117,12 @@ const rejectEvent = () => {
         />
         <button type="submit" class="discover-btn" :disabled="loading || !query.trim()">
           <span v-if="loading" class="btn-spinner"></span>
-          {{ loading ? 'Searching...' : '🔍 Discover' }}
+          <span v-if="!loading" style="display: flex; align-items: center; gap: 6px;"><Search class="lucide" style="width: 16px; height: 16px;" /> Discover</span>
+          <span v-else>Searching...</span>
         </button>
       </form>
       <p class="location-hint" v-if="lat">
-        📍 Using your current location for better results
+        <MapPin class="lucide" style="width: 14px; height: 14px; margin-right: 4px; vertical-align: text-bottom" /> Using your current location for better results
       </p>
     </div>
 
@@ -140,19 +142,20 @@ const rejectEvent = () => {
             <h3>{{ previewEvent.title }}</h3>
             <p class="preview-desc">{{ previewEvent.description }}</p>
             <div class="preview-meta">
-              <span>📍 {{ previewEvent.locationName }}</span>
-              <span>📅 {{ new Date(previewEvent.date).toLocaleString() }}</span>
-              <a v-if="previewEvent.sourceUrl" :href="previewEvent.sourceUrl" target="_blank" class="source-link">🔗 Source</a>
+              <span><MapPin class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> {{ previewEvent.locationName }}</span>
+              <span><Calendar class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> {{ new Date(previewEvent.date).toLocaleString() }}</span>
+              <a v-if="previewEvent.sourceUrl" :href="previewEvent.sourceUrl" target="_blank" class="source-link"><Link class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> Source</a>
             </div>
             <div class="preview-coords" v-if="previewEvent.latitude">
-              <span>🗺️ {{ previewEvent.latitude.toFixed(4) }}, {{ previewEvent.longitude.toFixed(4) }}</span>
+              <span><Map class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> {{ previewEvent.latitude.toFixed(4) }}, {{ previewEvent.longitude.toFixed(4) }}</span>
             </div>
           </div>
           <div class="preview-actions">
             <button @click="approveEvent" class="btn-approve" :disabled="approving">
-              {{ approving ? 'Publishing...' : '✅ Approve & Publish' }}
+              <span v-if="approving">Publishing...</span>
+              <span v-else style="display: flex; align-items: center; justify-content: center; gap: 6px;"><CheckCircle class="lucide" style="width: 16px; height: 16px" /> Approve & Publish</span>
             </button>
-            <button @click="rejectEvent" class="btn-reject">✕ Reject</button>
+            <button @click="rejectEvent" class="btn-reject" style="display: flex; align-items: center; justify-content: center; gap: 6px;"><XCircle class="lucide" style="width: 16px; height: 16px" /> Reject</button>
           </div>
         </div>
       </div>

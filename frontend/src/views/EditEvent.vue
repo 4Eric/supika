@@ -8,6 +8,20 @@ import EventMap from '@/components/EventMap.vue'
 import TimeSlotManager from '@/components/TimeSlotManager.vue'
 import ImageUploadZone from '@/components/ImageUploadZone.vue'
 import { useThemeStore } from '@/stores/themeStore'
+import { FileText, MapPin, Coins, Camera, Search, Music, Dumbbell, Palette, Laptop, Pizza, Laugh, Drama, Tent, PawPrint, Sparkles } from 'lucide-vue-next'
+
+const categoryOptions = [
+  { key: 'music', icon: Music },
+  { key: 'sports', icon: Dumbbell },
+  { key: 'art', icon: Palette },
+  { key: 'tech', icon: Laptop },
+  { key: 'food', icon: Pizza },
+  { key: 'comedy', icon: Laugh },
+  { key: 'theater', icon: Drama },
+  { key: 'festival', icon: Tent },
+  { key: 'pet', icon: PawPrint },
+  { key: 'other', icon: Sparkles },
+]
 
 const router = useRouter()
 const route = useRoute()
@@ -224,7 +238,7 @@ const submitForm = async () => {
     <form @submit.prevent="submitForm" class="create-form">
       <!-- Section 1: Basics -->
       <section class="form-section card">
-        <h3 class="section-title"><span class="icon">📝</span> Basic Info</h3>
+        <h3 class="section-title"><FileText class="lucide" style="width:20px;height:20px;" /> Basic Info</h3>
         <div class="form-group">
           <label>Event Title</label>
           <input type="text" v-model="title" class="form-control" required placeholder="Update your title..." />
@@ -236,8 +250,8 @@ const submitForm = async () => {
         <div class="form-group">
           <label>Category</label>
           <div class="category-grid">
-            <button type="button" v-for="cat in [['music','🎵'],['sports','🏋️'],['art','🎨'],['tech','💻'],['food','🍕'],['comedy','😄'],['theater','🎭'],['festival','🎪'],['pet','🐾'],['other','✨']]" :key="cat[0]" class="cat-chip" :class="{ active: category === cat[0] }" @click="category = cat[0]">
-              {{ cat[1] }} {{ cat[0] }}
+            <button type="button" v-for="cat in categoryOptions" :key="cat.key" class="cat-chip" :class="{ active: category === cat.key }" @click="category = cat.key">
+              <component :is="cat.icon" class="lucide" style="width:16px;height:16px;" /> {{ cat.key }}
             </button>
           </div>
         </div>
@@ -250,14 +264,14 @@ const submitForm = async () => {
 
       <!-- Section 3: Location -->
       <section class="form-section card">
-        <h3 class="section-title"><span class="icon">📍</span> Location</h3>
+        <h3 class="section-title"><MapPin class="lucide" style="width:20px;height:20px;" /> Location</h3>
         <div class="form-group">
           <label>Where</label>
           <div class="location-search">
             <input type="text" v-model="locationName" class="form-control" required placeholder="Search an address..." />
             <div class="search-actions">
-              <button type="button" @click="lookupAddress" class="btn-search" title="Search address">🔍</button>
-              <button type="button" @click="getUserLocation" class="btn-search" title="Use my current location">📍</button>
+              <button type="button" @click="lookupAddress" class="btn-search" title="Search address"><Search class="lucide" style="width:18px;height:18px;" /></button>
+              <button type="button" @click="getUserLocation" class="btn-search" title="Use my current location"><MapPin class="lucide" style="width:18px;height:18px;" /></button>
             </div>
           </div>
         </div>
@@ -271,7 +285,7 @@ const submitForm = async () => {
 
       <!-- Section 4: Pricing -->
       <section class="form-section card">
-        <h3 class="section-title"><span class="icon">💰</span> Ticket Pricing</h3>
+        <h3 class="section-title"><Coins class="lucide" style="width:20px;height:20px;" /> Ticket Pricing</h3>
         <p class="section-hint">Keep it 0 for free events. Supika charges a 7% platform fee on paid tickets.</p>
         <div class="pricing-grid">
           <div class="form-group">
@@ -295,7 +309,7 @@ const submitForm = async () => {
 
       <!-- Section 5: Media & Settings -->
       <section class="form-section card">
-        <h3 class="section-title"><span class="icon">📸</span> Media & Settings</h3>
+        <h3 class="section-title"><Camera class="lucide" style="width:20px;height:20px;" /> Media & Settings</h3>
         <div class="form-group">
           <label>Photos (Max 10)</label>
           <ImageUploadZone 

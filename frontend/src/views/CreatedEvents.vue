@@ -5,6 +5,7 @@ import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { getImageUrl } from '@/utils/imageUrl'
+import { Users, MapPin, Calendar, Edit2, Trash2 } from 'lucide-vue-next'
 
 const events = ref([])
 const loading = ref(true)
@@ -117,18 +118,18 @@ const formatLocation = (loc) => {
           <div class="card-content-body" @click="viewEvent(event.id)">
             <h3>{{ event.title }}</h3>
             <div class="attendee-badge">
-              👥 {{ event.attendeeCount || 0 }} / {{ event.maxAttendees || 5 }} Attendees
+              <Users class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> {{ event.attendeeCount || 0 }} / {{ event.maxAttendees || 5 }} Attendees
             </div>
             <p class="location-text">
-              📍 <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" @click.stop class="location-link">{{ formatLocation(event.locationName) }}</a>
+              <MapPin class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> <a :href="`https://www.google.com/maps/search/?api=1&query=${event.latitude},${event.longitude}`" target="_blank" @click.stop class="location-link">{{ formatLocation(event.locationName) }}</a>
             </p>
-            <p class="date-text">📅 {{ new Date(event.date).toLocaleDateString() }}</p>
+            <p class="date-text"><Calendar class="lucide" style="width: 14px; height: 14px; margin-right: 4px" /> {{ new Date(event.date).toLocaleDateString() }}</p>
             <p class="desc-text">{{ event.description.substring(0, 100) }}...</p>
           </div>
           
           <div class="card-footer">
-            <a href="#" @click.stop.prevent="editEvent(event.id, $event)" class="action-btn edit-btn">✏️ Edit</a>
-            <a href="#" @click.stop.prevent="promptDelete(event.id, $event)" class="action-btn delete-btn">🗑️ Delete</a>
+            <a href="#" @click.stop.prevent="editEvent(event.id, $event)" class="action-btn edit-btn" aria-label="Edit"><Edit2 class="lucide" style="margin-right: 6px"/> Edit</a>
+            <a href="#" @click.stop.prevent="promptDelete(event.id, $event)" class="action-btn delete-btn" aria-label="Delete"><Trash2 class="lucide" style="margin-right: 6px"/> Delete</a>
           </div>
         </div>
       </div>

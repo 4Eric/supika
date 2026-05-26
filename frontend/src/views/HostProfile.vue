@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { API_URL } from '@/config/api'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
+import { Mailbox, Sparkles, Users, Palmtree } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -67,7 +68,7 @@ const goToEvent = (id) => {
     </div>
 
     <div v-else-if="error" class="error-state">
-      <span class="error-icon">📭</span>
+      <Mailbox class="error-icon lucide" style="width: 64px; height: 64px; margin-bottom: 1rem;" />
       <h2>{{ error }}</h2>
       <button @click="router.push('/')" class="btn btn-primary">Go Home</button>
     </div>
@@ -82,7 +83,7 @@ const goToEvent = (id) => {
           </div>
           <div class="profile-name-area">
             <h1>{{ host.username }}</h1>
-            <p class="host-badge">✨ Event Host</p>
+            <p class="host-badge" style="display:flex;align-items:center;gap:6px;"><Sparkles class="lucide" style="width:16px;height:16px;" /> Event Host</p>
           </div>
         </div>
         
@@ -134,7 +135,7 @@ const goToEvent = (id) => {
                 <h3 class="event-title">{{ event.title }}</h3>
                 <p class="event-location">{{ event.locationName }}</p>
                 <div class="event-footer">
-                  <span class="attendee-count">👥 {{ event.attendeeCount }} vibing</span>
+                  <span class="attendee-count" style="display:flex;align-items:center;gap:4px;"><Users class="lucide" style="width:14px;height:14px;" /> {{ event.attendeeCount }} vibing</span>
                   <span v-if="event.ticketPrice > 0" class="price-tag">${{ event.ticketPrice }}</span>
                   <span v-else class="free-badge">Free</span>
                 </div>
@@ -143,7 +144,7 @@ const goToEvent = (id) => {
           </TransitionGroup>
 
           <div v-if="(activeTab === 'upcoming' ? upcomingEvents : pastEvents).length === 0" class="empty-feed">
-            <span class="empty-icon">🏜️</span>
+            <Palmtree class="empty-icon lucide" style="width:64px;height:64px;margin-bottom:1rem;" />
             <p>No {{ activeTab }} events found for this host.</p>
           </div>
         </div>

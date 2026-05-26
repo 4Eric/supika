@@ -4,6 +4,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
+import { AlertTriangle, PartyPopper } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -43,14 +44,14 @@ onMounted(async () => {
         </div>
 
         <div v-else-if="error" class="error-card">
-            <div class="icon">⚠️</div>
+            <div class="icon"><AlertTriangle class="lucide" style="width: 48px; height: 48px; margin-bottom: 1rem;" /></div>
             <h2>Something went wrong</h2>
             <p>{{ error }}</p>
             <button @click="router.push('/')" class="btn btn-primary">Go to Home</button>
         </div>
 
         <div v-else class="success-card">
-            <div class="confetti">🎉</div>
+            <div class="confetti"><PartyPopper class="lucide" style="width: 64px; height: 64px;" /></div>
             <h1 class="gradient-text">You're in!</h1>
             <p class="subtitle">Your ticket for <strong>{{ transaction.eventTitle || transaction.event_title }}</strong> is confirmed.</p>
             
